@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CrySense — Baby Cry Detection AI</title>
+  <meta name="description" content="AI-powered baby cry detection. Upload an audio file and instantly know if your baby is hungry, tired, in pain, or needs burping." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+
+<!-- ── Animated BG ──────────────────────────────────────────────── -->
+<div class="bg-orbs">
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="orb orb-3"></div>
+</div>
+
+<!-- ── Navbar ───────────────────────────────────────────────────── -->
+<nav class="navbar" id="navbar">
+  <div class="nav-inner">
+    <div class="nav-logo">
+      <span class="logo-icon">🍼</span>
+      <span class="logo-text">Cry<span class="accent">Sense</span></span>
+    </div>
+    <div class="nav-links">
+      <a href="#upload-section"   class="nav-link">Detect</a>
+      <a href="#how-section"      class="nav-link">How It Works</a>
+      <a href="#model-section"    class="nav-link">ML Model</a>
+    </div>
+    <div class="nav-status" id="modelStatus">
+      <span class="status-dot pulsing"></span>
+      <span class="status-text">Checking…</span>
+    </div>
+  </div>
+</nav>
+
+<!-- ── Hero ─────────────────────────────────────────────────────── -->
+<header class="hero" id="home">
+  <div class="hero-content">
+    <div class="hero-badge">
+      <span>🤖 ML-Powered Audio Analysis</span>
+    </div>
+    <h1 class="hero-title">
+      Decode Your<br />
+      <span class="gradient-text">Baby's Cry</span><br />
+      Instantly
+    </h1>
+    <p class="hero-desc">
+      CrySense uses a deep CNN trained on thousands of baby cry recordings to detect
+      whether your baby is <strong>hungry</strong>, <strong>tired</strong>, in
+      <strong>belly pain</strong>, needs <strong>burping</strong>, or is in
+      <strong>discomfort</strong> — all from a short audio clip.
+    </p>
+    <div class="hero-cta">
+      <a href="#upload-section" class="btn-primary">
+        <span>🎙️ Start Detection</span>
+      </a>
+      <a href="#how-section" class="btn-ghost">Learn How It Works →</a>
+    </div>
+  </div>
+  <div class="hero-visual">
+    <div class="waveform-anim">
+      <div class="wave-bar" style="--d:0s"></div>
+      <div class="wave-bar" style="--d:0.1s"></div>
+      <div class="wave-bar" style="--d:0.2s"></div>
+      <div class="wave-bar" style="--d:0.3s"></div>
+      <div class="wave-bar" style="--d:0.4s"></div>
+      <div class="wave-bar" style="--d:0.5s"></div>
+      <div class="wave-bar" style="--d:0.6s"></div>
+      <div class="wave-bar" style="--d:0.7s"></div>
+      <div class="wave-bar" style="--d:0.8s"></div>
+      <div class="wave-bar" style="--d:0.9s"></div>
+      <div class="wave-bar" style="--d:1.0s"></div>
+      <div class="wave-bar" style="--d:0.9s"></div>
+      <div class="wave-bar" style="--d:0.8s"></div>
+      <div class="wave-bar" style="--d:0.7s"></div>
+      <div class="wave-bar" style="--d:0.6s"></div>
+    </div>
+    <div class="floating-emojis">
+      <span class="fe fe1">🍼</span>
+      <span class="fe fe2">😴</span>
+      <span class="fe fe3">🤢</span>
+      <span class="fe fe4">💨</span>
+      <span class="fe fe5">😣</span>
+    </div>
+  </div>
+</header>
+
+<!-- ── Upload Section ───────────────────────────────────────────── -->
+<section class="section" id="upload-section">
+  <div class="container">
+    <div class="section-header">
+      <h2>Upload Baby Cry Audio</h2>
+      <p>Upload a <code>.wav</code> file of your baby crying (3–10 seconds works best)</p>
+    </div>
+
+    <div class="upload-card glass-card" id="uploadCard">
+      <div class="drop-zone" id="dropZone">
+        <div class="drop-icon">🎙️</div>
+        <p class="drop-text">Drag & drop a <strong>.wav</strong> file here</p>
+        <p class="drop-sub">or</p>
+        <label class="btn-primary" for="audioInput">
+          Browse File
+        </label>
+        <input type="file" id="audioInput" accept=".wav,audio/*" hidden />
+        <p class="file-hint">Supported: .wav · Max ~10 MB</p>
+      </div>
+
+      <!-- Selected file preview -->
+      <div class="file-preview hidden" id="filePreview">
+        <div class="file-icon">🎵</div>
+        <div class="file-info">
+          <p class="file-name" id="fileName">—</p>
+          <p class="file-size" id="fileSize">—</p>
+          <audio id="audioPlayer" controls class="audio-player"></audio>
+        </div>
+        <button class="btn-ghost btn-sm" id="changeFile">Change</button>
+      </div>
+
+      <button class="btn-primary btn-analyze" id="analyzeBtn" disabled>
+        <span class="btn-icon">🔍</span>
+        <span class="btn-text">Analyze Cry</span>
+      </button>
+    </div>
+
+    <!-- Loading State -->
+    <div class="loading-card glass-card hidden" id="loadingCard">
+      <div class="spinner-ring"></div>
+      <p class="loading-text">Analyzing audio with CNN…</p>
+      <div class="loading-steps">
+        <div class="step active" id="step1">📡 Extracting MFCC Features</div>
+        <div class="step" id="step2">🧠 Running CNN Inference</div>
+        <div class="step" id="step3">📊 Generating Results</div>
+      </div>
+    </div>
+
+    <!-- Result Card -->
+    <div class="result-card glass-card hidden" id="resultCard">
+      <div class="result-header">
+        <div class="result-emoji" id="resultEmoji">👶</div>
+        <div>
+          <p class="result-label">Your baby is…</p>
+          <h3 class="result-title" id="resultTitle">—</h3>
+          <p class="result-confidence" id="resultConfidence">—</p>
+        </div>
+        <button class="btn-ghost btn-sm" id="tryAgainBtn">Try Again</button>
+      </div>
+
+      <div class="advice-box" id="adviceBox">
+        <h4>💡 What to do:</h4>
+        <p id="adviceText">—</p>
+      </div>
+
+      <!-- Probability Bars -->
+      <div class="prob-section">
+        <h4>All Probabilities</h4>
+        <div class="prob-bars" id="probBars"></div>
+      </div>
+
+      <!-- Severity Badge -->
+      <div class="sev-row">
+        <span class="sev-badge" id="sevBadge">—</span>
+        <span class="sev-note" id="sevNote">—</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── How It Works ──────────────────────────────────────────────── -->
+<section class="section" id="how-section">
+  <div class="container">
+    <div class="section-header">
+      <h2>How It Works</h2>
+      <p>A full ML pipeline — from raw audio to actionable insights</p>
+    </div>
+    <div class="steps-grid">
+      <div class="step-card glass-card">
+        <div class="step-num">01</div>
+        <div class="step-icon">🎙️</div>
+        <h3>Audio Input</h3>
+        <p>Record or upload a WAV file of your baby crying. Even 3–5 seconds is enough for accurate detection.</p>
+      </div>
+      <div class="step-card glass-card">
+        <div class="step-num">02</div>
+        <div class="step-icon">📊</div>
+        <h3>MFCC Extraction</h3>
+        <p>40 Mel-Frequency Cepstral Coefficients are extracted using Librosa, producing a 40×128 spectrogram-like feature map.</p>
+      </div>
+      <div class="step-card glass-card">
+        <div class="step-num">03</div>
+        <div class="step-icon">🧠</div>
+        <h3>CNN Classification</h3>
+        <p>A 3-block deep CNN (Conv2D + BatchNorm + Dropout) processes the MFCC map and classifies it into one of 5 cry types.</p>
+      </div>
+      <div class="step-card glass-card">
+        <div class="step-num">04</div>
+        <div class="step-icon">💡</div>
+        <h3>Actionable Advice</h3>
+        <p>The predicted cry type is paired with evidence-based parenting advice so you know exactly how to respond.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Cry Types ─────────────────────────────────────────────────── -->
+<section class="section" id="types-section">
+  <div class="container">
+    <div class="section-header">
+      <h2>5 Cry Types Detected</h2>
+      <p>CrySense distinguishes between these specific infant needs</p>
+    </div>
+    <div class="types-grid">
+      <div class="type-card glass-card" style="--accent:#ef4444">
+        <div class="type-emoji">🤢</div>
+        <h3>Belly Pain</h3>
+        <p>Gas, colic, or stomach discomfort causing the baby to cry sharply.</p>
+      </div>
+      <div class="type-card glass-card" style="--accent:#f97316">
+        <div class="type-emoji">💨</div>
+        <h3>Burping</h3>
+        <p>Baby needs to burp after feeding. Cry is often short and rhythmic.</p>
+      </div>
+      <div class="type-card glass-card" style="--accent:#eab308">
+        <div class="type-emoji">😣</div>
+        <h3>Discomfort</h3>
+        <p>Wet diaper, wrong temperature, or skin irritation causing fussiness.</p>
+      </div>
+      <div class="type-card glass-card" style="--accent:#22c55e">
+        <div class="type-emoji">🍼</div>
+        <h3>Hungry</h3>
+        <p>Classic hunger cry — rhythmic and builds in intensity over time.</p>
+      </div>
+      <div class="type-card glass-card" style="--accent:#6c63ff">
+        <div class="type-emoji">😴</div>
+        <h3>Tired</h3>
+        <p>Overtired baby crying. Usually whiny and accompanied by eye rubbing.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Model Stats ────────────────────────────────────────────────── -->
+<section class="section" id="model-section">
+  <div class="container">
+    <div class="section-header">
+      <h2>ML Model Stats</h2>
+      <p>Live information from the trained CNN model</p>
+    </div>
+    <div class="stats-grid" id="statsGrid">
+      <div class="stat-card glass-card">
+        <div class="stat-icon">🎯</div>
+        <div class="stat-val" id="statAcc">—</div>
+        <div class="stat-label">Best Val Accuracy</div>
+      </div>
+      <div class="stat-card glass-card">
+        <div class="stat-icon">🏗️</div>
+        <div class="stat-val" id="statParams">—</div>
+        <div class="stat-label">Model Parameters</div>
+      </div>
+      <div class="stat-card glass-card">
+        <div class="stat-icon">🏷️</div>
+        <div class="stat-val" id="statClasses">5</div>
+        <div class="stat-label">Cry Classes</div>
+      </div>
+      <div class="stat-card glass-card">
+        <div class="stat-icon">📦</div>
+        <div class="stat-val">CNN</div>
+        <div class="stat-label">Architecture</div>
+      </div>
+    </div>
+
+    <!-- Training Chart -->
+    <div class="chart-card glass-card" id="chartCard" style="display:none">
+      <h3>Training Curves</h3>
+      <div class="chart-tabs">
+        <button class="tab-btn active" data-metric="accuracy" id="tabAcc">Accuracy</button>
+        <button class="tab-btn"        data-metric="loss"     id="tabLoss">Loss</button>
+      </div>
+      <canvas id="trainChart"></canvas>
+    </div>
+
+    <div class="not-trained-note glass-card" id="notTrainedNote">
+      <div class="nt-icon">⚠️</div>
+      <div>
+        <h3>Model Not Trained Yet</h3>
+        <p>Run <code>python train_model.py</code> to train the CNN on your dataset. Training takes ~5–15 minutes depending on your hardware.</p>
+        <div class="code-block">python train_model.py</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Footer ─────────────────────────────────────────────────────── -->
+<footer class="footer">
+  <div class="container footer-inner">
+    <div class="footer-logo">
+      <span class="logo-icon">🍼</span>
+      <span class="logo-text">Cry<span class="accent">Sense</span></span>
+    </div>
+    <p class="footer-desc">
+      AI-powered baby cry detection using Deep Learning & Audio Signal Processing.
+    </p>
+    <p class="footer-copy">Built with ❤️ using TensorFlow, Librosa & Flask</p>
+  </div>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="/static/app.js"></script>
+</body>
+</html>
