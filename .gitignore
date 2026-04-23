@@ -1,0 +1,21 @@
+# ── Trained Model (large file ~34MB) ──────────────────
+crysense_model.h5
+
+# ── Datasets (raw .wav files) ──────────────────────────
+dataset1/
+aug-dataset1/
+
+# ── Python cache ───────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+.ipynb_checkpoints/
+
+# ── Virtual environments ────────────────────────────────
+venv/
+env/
+.env
+
+# ── OS files ───────────────────────────────────────────
+.DS_Store
+Thumbs.db
