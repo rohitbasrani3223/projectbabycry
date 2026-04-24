@@ -1,28 +1,25 @@
 """
 CrySense - Flask Backend API
 ==============================
-Serves predictions from the trained CNN model.
 Endpoints:
   POST /predict        - Upload .wav file → get cry type prediction
-  POST /predict-live   - Record from mic (5 sec) → predict
   GET  /model-info     - Model accuracy, classes, training stats
   GET  /history        - Training history JSON
+  GET  /health         - Server health
 """
 
 import os
-import io
 import json
 import pickle
 import tempfile
 import numpy as np
 import librosa
-from pathlib import Path
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 import warnings
 warnings.filterwarnings('ignore')
 
-# ── Load model on startup ──────────────────────────────────────────────────────
+# ── Paths ─────────────────────────────────────────────────────────────────────
 MODEL_PATH   = 'crysense_model.h5'
 ENCODER_PATH = 'label_encoder.pkl'
 HISTORY_PATH = 'training_history.json'
@@ -30,45 +27,187 @@ HISTORY_PATH = 'training_history.json'
 app = Flask(__name__, static_folder='static')
 CORS(app)
 
-model       = None
-label_enc   = None
+model            = None
+label_enc        = None
 training_history = {}
 
-# Emoji + advice map for each cry type
+# ── Rich Emotion Data ──────────────────────────────────────────────────────────
 CRY_INFO = {
     'belly_pain': {
-        'emoji': '🤢',
-        'color': '#ef4444',
-        'advice': 'Baby may have gas or stomach pain. Try gentle tummy massage in clockwise circles, bicycle leg movements, or burping the baby.',
-        'severity': 'medium'
+        'emoji':       '🤢',
+        'color':       '#ef4444',
+        'severity':    'high',
+        'label':       'Belly Pain / Gas',
+        'advice':      'Baby may have gas or stomach cramps. Try gentle tummy massage in slow clockwise circles, bicycle leg movements, or hold baby over your shoulder with gentle back pats.',
+        'advice_hi':   'बच्चे को गैस या पेट दर्द हो सकता है। पेट पर धीरे-धीरे घड़ी की दिशा में मालिश करें, साइकिल की तरह पैर हिलाएं, या कंधे पर उठाकर पीठ थपथपाएं।',
+        'quick_tips':  [
+            '🔄 Clockwise tummy massage',
+            '🚲 Bicycle leg movements',
+            '🤱 Hold upright on shoulder',
+            '🌡️ Check for fever',
+            '🍼 Check if overfeeding'
+        ],
+        'secondary_emotions': ['discomfort', 'scared'],
+        'doctor_warning': 'If crying persists over 3 hours, baby has fever, or vomiting — consult doctor immediately.',
+        'duration_tip': 'Usually resolves in 20–40 minutes with proper soothing.'
     },
     'burping': {
-        'emoji': '💨',
-        'color': '#f97316',
-        'advice': 'Baby needs to burp. Hold baby upright, gently pat or rub the back until they burp.',
-        'severity': 'low'
+        'emoji':       '💨',
+        'color':       '#f97316',
+        'severity':    'low',
+        'label':       'Needs to Burp',
+        'advice':      'Baby has trapped air after feeding. Hold baby upright and gently pat or rub their back in an upward motion until they burp. Try the over-the-shoulder or face-down-on-lap positions.',
+        'advice_hi':   'दूध पीने के बाद बच्चे को डकार दिलानी है। बच्चे को सीधा पकड़ें और पीठ पर धीरे-धीरे थपथपाएं। कंधे पर उठाकर या पेट के बल घुटने पर लिटाकर भी कोशिश करें।',
+        'quick_tips':  [
+            '🤱 Hold upright on shoulder',
+            '👐 Gentle circular back rub',
+            '🦵 Face-down on lap method',
+            '⏰ Pat for at least 2–3 minutes',
+            '🍼 Feed more slowly next time'
+        ],
+        'secondary_emotions': ['discomfort', 'hungry'],
+        'doctor_warning': 'If baby spits up excessively or seems in pain after every feeding, check for reflux.',
+        'duration_tip': 'Usually resolves within 5 minutes of proper burping technique.'
     },
     'discomfort': {
-        'emoji': '😣',
-        'color': '#eab308',
-        'advice': 'Baby is uncomfortable. Check diaper, clothing, temperature, or if anything is irritating the skin.',
-        'severity': 'low'
+        'emoji':       '😣',
+        'color':       '#eab308',
+        'severity':    'medium',
+        'label':       'Discomfort / Irritation',
+        'advice':      'Baby is uncomfortable. Check for wet or soiled diaper, clothing that is too tight, room temperature issues, skin rash or irritation, or anything poking/scratching the baby.',
+        'advice_hi':   'बच्चा असहज है। गीला या गंदा डायपर चेक करें, कपड़े बहुत टाइट तो नहीं, कमरे का तापमान सही है या नहीं, त्वचा पर दाने तो नहीं हैं।',
+        'quick_tips':  [
+            '👶 Check & change diaper',
+            '🌡️ Check room temperature (20–22°C ideal)',
+            '👕 Loosen tight clothing',
+            '🔍 Check for hair tourniquet on fingers/toes',
+            '💆 Gentle skin-to-skin contact'
+        ],
+        'secondary_emotions': ['tired', 'belly_pain'],
+        'doctor_warning': 'If you find a rash, swelling, or the baby cannot be soothed — see a pediatrician.',
+        'duration_tip': 'Once the cause is fixed, baby should calm down within 5–10 minutes.'
     },
     'hungry': {
-        'emoji': '🍼',
-        'color': '#22c55e',
-        'advice': 'Baby is hungry! Time to feed. Offer breast or bottle. Look for rooting reflex signs.',
-        'severity': 'medium'
+        'emoji':       '🍼',
+        'color':       '#22c55e',
+        'severity':    'medium',
+        'label':       'Hungry / Needs Feeding',
+        'advice':      'Baby is hungry! Feed immediately. Look for early hunger cues: rooting reflex, sucking hands, turning head side to side. Do not wait until the cry is intense as it makes latching harder.',
+        'advice_hi':   'बच्चे को भूख लगी है! तुरंत दूध पिलाएं। भूख के शुरुआती संकेत: मुंह घुमाना, हाथ चूसना, सिर इधर-उधर करना। रोने तक इंतज़ार न करें।',
+        'quick_tips':  [
+            '🤱 Breastfeed or offer bottle immediately',
+            '👀 Check rooting reflex signs',
+            '⏰ Track feeding schedule (every 2–3 hrs newborn)',
+            '📊 Monitor wet diapers (6+ per day = well fed)',
+            '🌙 Night feeds are normal for infants'
+        ],
+        'secondary_emotions': ['tired', 'discomfort'],
+        'doctor_warning': 'If baby feeds but still seems unsatisfied, check milk supply or formula preparation.',
+        'duration_tip': 'Newborns feed every 1.5–3 hours. Older babies every 3–4 hours.'
     },
     'tired': {
-        'emoji': '😴',
-        'color': '#6c63ff',
-        'advice': 'Baby is tired and needs sleep. Dim the lights, reduce noise, try rocking or swaddling.',
-        'severity': 'low'
+        'emoji':       '😴',
+        'color':       '#6c63ff',
+        'severity':    'low',
+        'label':       'Tired / Sleepy',
+        'advice':      'Baby is overtired and needs sleep. Create a calm environment: dim lights, reduce noise, use white noise, try rocking or swaddling. Watch for sleep cues: eye rubbing, yawning, staring blankly.',
+        'advice_hi':   'बच्चा थका हुआ है और सोना चाहता है। शांत माहौल बनाएं: रोशनी कम करें, शोर कम करें, सफेद आवाज़ चलाएं, झुलाएं या कपड़े में लपेटें।',
+        'quick_tips':  [
+            '🌙 Dim the lights',
+            '🔇 Reduce noise & stimulation',
+            '🌊 Play white noise / fan sound',
+            '🤗 Swaddle snugly',
+            '🪂 Gentle rhythmic rocking'
+        ],
+        'secondary_emotions': ['discomfort', 'hungry'],
+        'doctor_warning': 'If baby has difficulty sleeping consistently or seems lethargic during awake time — consult doctor.',
+        'duration_tip': 'Newborns sleep 16–18 hrs/day. Create a bedtime routine from early on.'
+    }
+}
+
+# ── Secondary/Inferred Emotions ────────────────────────────────────────────────
+# These are rule-based inferences BEYOND the model's 5 classes
+INFERRED_EMOTIONS = {
+    'colic': {
+        'emoji':    '😭',
+        'color':    '#dc2626',
+        'label':    'Possible Colic',
+        'desc':     'High-intensity crying that may indicate colic — intense, inconsolable crying in an otherwise healthy baby, often in the evenings.',
+        'desc_hi':  'बहुत तेज़ और लंबे समय तक रोना कोलिक का संकेत हो सकता है।',
+        'tip':      'Rule of 3: Colic is crying 3+ hrs/day, 3+ days/week, for 3+ weeks. Consult pediatrician.',
+    },
+    'scared': {
+        'emoji':    '😨',
+        'color':    '#7c3aed',
+        'label':    'Possibly Scared / Startled',
+        'desc':     'Baby may have been startled or is feeling anxious. Sudden loud noises, unfamiliar faces, or abrupt movements can trigger this cry.',
+        'desc_hi':  'बच्चा डरा हुआ या चौंका हुआ हो सकता है। तेज़ आवाज़ या अचानक हलचल से डर लग सकता है।',
+        'tip':      'Hold baby close, speak softly, and remove the source of fright.',
+    },
+    'lonely': {
+        'emoji':    '🥺',
+        'color':    '#0284c7',
+        'label':    'Lonely / Needs Attention',
+        'desc':     'Baby wants to be held or needs human interaction. Babies cry for connection — this is completely normal and healthy.',
+        'desc_hi':  'बच्चा गोद में आना चाहता है या ध्यान चाहता है। यह बिल्कुल सामान्य है।',
+        'tip':      'Pick baby up, make eye contact, talk or sing softly. Cuddles are never "spoiling".',
+    },
+    'overstimulated': {
+        'emoji':    '🌀',
+        'color':    '#0891b2',
+        'label':    'Overstimulated',
+        'desc':     'Baby has received too much sensory input — bright lights, noise, many people, or too much activity. They need a calm, quiet space to reset.',
+        'desc_hi':  'बच्चे को बहुत ज़्यादा उत्तेजना मिल गई — तेज़ रोशनी, शोर, भीड़। उसे शांत जगह चाहिए।',
+        'tip':      'Take baby to a quiet, dark room. Reduce all stimulation. Gentle swaying helps.',
+    },
+    'teething': {
+        'emoji':    '🦷',
+        'color':    '#b45309',
+        'label':    'Possibly Teething Pain',
+        'desc':     'If baby is 4–7 months old, teething could be causing pain and discomfort. Look for drooling, chewing on hands, and swollen gums.',
+        'desc_hi':  '4–7 महीने की उम्र में दांत निकलने की तकलीफ हो सकती है। लार ज़्यादा आना, हाथ चबाना संकेत हैं।',
+        'tip':      'Use a cold (not frozen) teething ring. Gently rub gums with clean finger.',
     }
 }
 
 
+def infer_secondary_emotion(prediction: str, confidence: float, all_probs: dict) -> dict | None:
+    """
+    Rule-based secondary emotion inference from model output patterns.
+    Returns an inferred emotion dict or None.
+    """
+    # Very low confidence = scared or overstimulated
+    if confidence < 45:
+        return INFERRED_EMOTIONS['scared']
+
+    # belly_pain + high confidence = possibly colic
+    if prediction == 'belly_pain' and confidence > 65:
+        # Check if it's sustained (we can't know duration, so flag it)
+        return INFERRED_EMOTIONS['colic']
+
+    # tired + low discomfort but medium confidence = overstimulated
+    if prediction == 'tired' and confidence < 70:
+        tired_p   = all_probs.get('tired', 0)
+        discomf_p = all_probs.get('discomfort', 0)
+        if discomf_p > 15:
+            return INFERRED_EMOTIONS['overstimulated']
+
+    # discomfort + low confidence + low hungry = lonely
+    if prediction == 'discomfort' and confidence < 60:
+        hungry_p = all_probs.get('hungry', 0)
+        if hungry_p < 20:
+            return INFERRED_EMOTIONS['lonely']
+
+    # burping but high belly_pain prob = possibly teething if older
+    if prediction == 'burping':
+        bp_p = all_probs.get('belly_pain', 0)
+        if bp_p > 20:
+            return INFERRED_EMOTIONS['teething']
+
+    return None
+
+
+# ── Load Resources ─────────────────────────────────────────────────────────────
 def load_resources():
     global model, label_enc, training_history
     try:
@@ -77,7 +216,7 @@ def load_resources():
             model = tf.keras.models.load_model(MODEL_PATH)
             print(f"[OK] Model loaded from {MODEL_PATH}")
         else:
-            print(f"[WARN] Model not found at {MODEL_PATH} -- run train_model.py first")
+            print(f"[WARN] Model not found — run train_model.py first")
     except Exception as e:
         print(f"[ERR] Error loading model: {e}")
 
@@ -85,7 +224,7 @@ def load_resources():
         if os.path.exists(ENCODER_PATH):
             with open(ENCODER_PATH, 'rb') as f:
                 label_enc = pickle.load(f)
-            print(f"[OK] Label encoder loaded")
+            print("[OK] Label encoder loaded")
     except Exception as e:
         print(f"[ERR] Error loading encoder: {e}")
 
@@ -97,20 +236,28 @@ def load_resources():
         pass
 
 
+# ── Feature Extraction ─────────────────────────────────────────────────────────
 def extract_mfcc(file_path: str) -> np.ndarray:
     N_MFCC  = 40
     MAX_LEN = 128
     SR      = 22050
     y, sr = librosa.load(file_path, sr=SR, duration=5)
-    mfcc = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=N_MFCC)
-    if mfcc.shape[1] < MAX_LEN:
-        mfcc = np.pad(mfcc, ((0, 0), (0, MAX_LEN - mfcc.shape[1])), mode='constant')
+
+    mfcc    = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=N_MFCC)
+    delta1  = librosa.feature.delta(mfcc)
+    delta2  = librosa.feature.delta(mfcc, order=2)
+    combined = np.vstack([mfcc, delta1, delta2])  # (120, T)
+
+    if combined.shape[1] < MAX_LEN:
+        combined = np.pad(combined, ((0, 0), (0, MAX_LEN - combined.shape[1])), mode='constant')
     else:
-        mfcc = mfcc[:, :MAX_LEN]
-    mfcc = (mfcc - mfcc.mean()) / (mfcc.std() + 1e-8)
-    return mfcc[np.newaxis, ..., np.newaxis]   # (1, 40, 128, 1)
+        combined = combined[:, :MAX_LEN]
+
+    combined = (combined - combined.mean()) / (combined.std() + 1e-8)
+    return combined[np.newaxis, ..., np.newaxis]  # (1, 120, 128, 1)
 
 
+# ── Prediction ─────────────────────────────────────────────────────────────────
 def run_prediction(file_path: str) -> dict:
     if model is None or label_enc is None:
         return {'error': 'Model not loaded. Please run train_model.py first.'}
@@ -128,16 +275,29 @@ def run_prediction(file_path: str) -> dict:
         }
 
         info = CRY_INFO.get(pred_cls, {})
-        return {
-            'prediction':  pred_cls,
-            'confidence':  round(confidence, 2),
-            'emoji':       info.get('emoji', '👶'),
-            'color':       info.get('color', '#6c63ff'),
-            'advice':      info.get('advice', ''),
-            'severity':    info.get('severity', 'low'),
-            'all_probs':   all_probs,
-            'status':      'success'
+
+        # Infer secondary emotion
+        secondary = infer_secondary_emotion(pred_cls, confidence, all_probs)
+
+        result = {
+            'prediction':         pred_cls,
+            'label':              info.get('label', pred_cls.replace('_', ' ').title()),
+            'confidence':         round(confidence, 2),
+            'emoji':              info.get('emoji', '👶'),
+            'color':              info.get('color', '#6c63ff'),
+            'advice':             info.get('advice', ''),
+            'advice_hi':          info.get('advice_hi', ''),
+            'quick_tips':         info.get('quick_tips', []),
+            'severity':           info.get('severity', 'low'),
+            'doctor_warning':     info.get('doctor_warning', ''),
+            'duration_tip':       info.get('duration_tip', ''),
+            'secondary_emotions': info.get('secondary_emotions', []),
+            'inferred_emotion':   secondary,
+            'all_probs':          all_probs,
+            'status':             'success'
         }
+        return result
+
     except Exception as e:
         return {'error': str(e), 'status': 'error'}
 
@@ -149,12 +309,10 @@ def index():
     return send_from_directory('static', 'index.html')
 
 
-
 @app.route('/predict', methods=['POST'])
 def predict():
     if 'audio' not in request.files:
         return jsonify({'error': 'No audio file provided', 'status': 'error'}), 400
-
     audio_file = request.files['audio']
     if audio_file.filename == '':
         return jsonify({'error': 'Empty filename', 'status': 'error'}), 400
@@ -162,34 +320,27 @@ def predict():
     with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmp:
         tmp_path = tmp.name
         audio_file.save(tmp_path)
-
     try:
         result = run_prediction(tmp_path)
     finally:
         os.unlink(tmp_path)
-
     return jsonify(result)
 
 
 @app.route('/model-info', methods=['GET'])
 def model_info():
     if model is None:
-        return jsonify({
-            'status': 'not_trained',
-            'message': 'Model not found. Run train_model.py to train.'
-        })
-
-    classes = list(label_enc.classes_) if label_enc else []
+        return jsonify({'status': 'not_trained', 'message': 'Model not found. Run train_model.py.'})
+    classes  = list(label_enc.classes_) if label_enc else []
     best_acc = None
     if training_history:
         best_acc = round(max(training_history.get('val_accuracy', [0])) * 100, 2)
-
     return jsonify({
-        'status':      'ready',
-        'classes':     classes,
-        'best_val_acc': best_acc,
-        'model_path':  MODEL_PATH,
-        'total_params': model.count_params() if model else 0
+        'status':        'ready',
+        'classes':       classes,
+        'best_val_acc':  best_acc,
+        'model_path':    MODEL_PATH,
+        'total_params':  model.count_params() if model else 0
     })
 
 
@@ -203,9 +354,19 @@ def history():
 @app.route('/health', methods=['GET'])
 def health():
     return jsonify({
-        'status':        'online',
-        'model_loaded':  model is not None,
-        'encoder_loaded': label_enc is not None
+        'status':          'online',
+        'model_loaded':    model is not None,
+        'encoder_loaded':  label_enc is not None
+    })
+
+
+# ── Emotion info endpoint ───────────────────────────────────────────────────────
+@app.route('/emotions', methods=['GET'])
+def emotions():
+    """Return all emotion metadata for the frontend."""
+    return jsonify({
+        'primary':   CRY_INFO,
+        'inferred':  INFERRED_EMOTIONS
     })
 
 
