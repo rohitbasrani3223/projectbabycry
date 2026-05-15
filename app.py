@@ -14,6 +14,8 @@ import pickle
 import tempfile
 import numpy as np
 import librosa
+import tensorflow as tf
+import tensorflow_hub as hub
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 import warnings
@@ -30,7 +32,21 @@ CORS(app)
 model            = None
 label_enc        = None
 training_history = {}
+print("Loading YAMNet...")
+yamnet_model = hub.load("https://tfhub.dev/google/yamnet/1")
+print("YAMNet loaded.")
 
+def extract_embedding(y):
+    scores, embeddings, spectrogram = yamnet_model(y)
+    embedding = tf.reduce_mean(embeddings, axis=0)
+    return embedding.numpy()
+
+def load_model():
+    global model, label_enc
+    model = tf.keras.models.load_model(MODEL_PATH)
+    with open(ENCODER_PATH, 'rb') as f:
+        label_enc = pickle.load(f)
+    print("Model loaded.")
 # ── Rich Emotion Data ──────────────────────────────────────────────────────────
 CRY_INFO = {
     'belly_pain': {
@@ -122,6 +138,24 @@ CRY_INFO = {
         'secondary_emotions': ['discomfort', 'hungry'],
         'doctor_warning': 'If baby has difficulty sleeping consistently or seems lethargic during awake time — consult doctor.',
         'duration_tip': 'Newborns sleep 16–18 hrs/day. Create a bedtime routine from early on.'
+    },
+    'cold_hot': {
+        'emoji':       '🌡️',
+        'color':       '#06b6d4',
+        'severity':    'high',
+        'label':       'Too Cold / Too Hot',
+        'advice':      'Baby is uncomfortable due to temperature — either too cold or too hot. Check the room temperature (ideal 20–22°C), feel baby\'s chest/back (not hands/feet) to gauge body temperature, and adjust clothing or blankets accordingly.',
+        'advice_hi':   'बच्चे को ठंड या गर्मी लग रही है। कमरे का तापमान जाँचें (20–22°C आदर्श है), बच्चे की छाती या पीठ छूकर देखें, और कपड़े या कंबल ठीक करें।',
+        'quick_tips':  [
+            '🌡️ Check room temperature (20–22°C ideal)',
+            '👕 Add/remove a layer of clothing',
+            '🤚 Feel chest/back — not hands/feet',
+            '🪟 Ventilate the room if too hot',
+            '🧣 Use a light blanket if too cold'
+        ],
+        'secondary_emotions': ['discomfort', 'tired'],
+        'doctor_warning': 'If baby feels very hot (fever > 38°C / 100.4°F) or very cold and unresponsive — seek medical help immediately.',
+        'duration_tip': 'Once temperature is adjusted, baby should settle within 5–10 minutes.'
     }
 }
 
@@ -236,26 +270,35 @@ def load_resources():
         pass
 
 
-# ── Feature Extraction ─────────────────────────────────────────────────────────
-def extract_mfcc(file_path: str) -> np.ndarray:
-    N_MFCC  = 40
-    MAX_LEN = 128
-    SR      = 22050
-    y, sr = librosa.load(file_path, sr=SR, duration=5)
 
-    mfcc    = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=N_MFCC)
-    delta1  = librosa.feature.delta(mfcc)
-    delta2  = librosa.feature.delta(mfcc, order=2)
-    combined = np.vstack([mfcc, delta1, delta2])  # (120, T)
+# ── Feature Extraction (matches train_model.py v5) ───────────────────────
+def extract_features(file_path):
 
-    if combined.shape[1] < MAX_LEN:
-        combined = np.pad(combined, ((0, 0), (0, MAX_LEN - combined.shape[1])), mode='constant')
-    else:
-        combined = combined[:, :MAX_LEN]
+    y, sr = librosa.load(
+        file_path,
+        sr=16000,
+        duration=5,
+        mono=True
+    )
 
-    combined = (combined - combined.mean()) / (combined.std() + 1e-8)
-    return combined[np.newaxis, ..., np.newaxis]  # (1, 120, 128, 1)
+    # Normalize audio
+    y = librosa.util.normalize(y)
 
+    # Remove silence
+    y, _ = librosa.effects.trim(y, top_db=20)
+
+    # YAMNet embeddings
+    scores, embeddings, spectrogram = yamnet_model(y)
+
+    embedding = tf.reduce_mean(
+        embeddings,
+        axis=0
+    )
+
+    return np.expand_dims(
+        embedding.numpy(),
+        axis=0
+    )
 
 # ── Prediction ─────────────────────────────────────────────────────────────────
 def run_prediction(file_path: str) -> dict:
@@ -263,11 +306,13 @@ def run_prediction(file_path: str) -> dict:
         return {'error': 'Model not loaded. Please run train_model.py first.'}
 
     try:
-        features = extract_mfcc(file_path)
+        features = extract_features(file_path)
         probs    = model.predict(features, verbose=0)[0]
         pred_idx = int(np.argmax(probs))
         pred_cls = label_enc.classes_[pred_idx]
         confidence = float(probs[pred_idx]) * 100
+        if confidence < 60:
+            pred_cls = "uncertain"
 
         all_probs = {
             label_enc.classes_[i]: round(float(probs[i]) * 100, 2)

@@ -71,7 +71,7 @@ https://appen.co.jp/off-the-shelf-datasets/ (paid)
    
 2. **Clone the Repository:**
    ```sh
-   git clone https://github.com/your-username/CrySense.git
+   git clone https://github.com/rohitbasrani3223/CrySense.git
 
 2. **Open on your local machine:**
    ```sh

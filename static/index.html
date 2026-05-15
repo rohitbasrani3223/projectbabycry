@@ -1,384 +1,467 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>CrySense — Baby Cry Detection AI</title>
-  <meta name="description" content="AI-powered baby cry detection. Upload an audio file and instantly know if your baby is hungry, tired, in pain, or needs burping — with Hindi advice." />
+  <meta name="description"
+    content="AI-powered baby cry detection. Upload audio or use live mic to know if your baby is hungry, tired, in pain, or needs burping." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap"
+    rel="stylesheet" />
   <link rel="stylesheet" href="/static/style.css" />
 </head>
+
 <body>
 
-<!-- ── Animated BG ────────────────────────────────────────────── -->
-<div class="bg-orbs">
-  <div class="orb orb-1"></div>
-  <div class="orb orb-2"></div>
-  <div class="orb orb-3"></div>
-</div>
+  <!-- ── Noise Overlay ── -->
+  <div class="noise-overlay"></div>
 
-<!-- ── Navbar ─────────────────────────────────────────────────── -->
-<nav class="navbar" id="navbar">
-  <div class="nav-inner">
-    <div class="nav-logo">
-      <span class="logo-icon">🍼</span>
-      <span class="logo-text">Cry<span class="accent">Sense</span></span>
-    </div>
-    <div class="nav-links">
-      <a href="#upload-section"   class="nav-link">Detect</a>
-      <a href="#how-section"      class="nav-link">How It Works</a>
-      <a href="#types-section"    class="nav-link">Cry Types</a>
-      <a href="#model-section"    class="nav-link">ML Model</a>
-    </div>
-    <div class="nav-status" id="modelStatus">
-      <span class="status-dot pulsing"></span>
-      <span class="status-text">Checking…</span>
-    </div>
+  <!-- ── Animated BG ── -->
+  <div class="bg-orbs">
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <div class="orb orb-3"></div>
+    <div class="orb orb-4"></div>
   </div>
-</nav>
 
-<!-- ── Hero ───────────────────────────────────────────────────── -->
-<header class="hero" id="home">
-  <div class="hero-content">
-    <div class="hero-badge">
-      <span>🤖 ML-Powered Audio Analysis · Hindi + English</span>
-    </div>
-    <h1 class="hero-title">
-      Decode Your<br />
-      <span class="gradient-text">Baby's Cry</span><br />
-      Instantly
-    </h1>
-    <p class="hero-desc">
-      CrySense uses a deep CNN trained on real baby cry recordings to detect
-      whether your baby is <strong>hungry</strong>, <strong>tired</strong>, in
-      <strong>belly pain</strong>, needs <strong>burping</strong>, or in
-      <strong>discomfort</strong> — with detailed advice in <strong>English & Hindi</strong>.
-    </p>
-    <div class="hero-cta">
-      <a href="#upload-section" class="btn-primary">
-        <span>🎙️ Start Detection</span>
-      </a>
-      <a href="#how-section" class="btn-ghost">Learn How It Works →</a>
-    </div>
-  </div>
-  <div class="hero-visual">
-    <div class="waveform-anim">
-      <div class="wave-bar" style="--d:0s"></div>
-      <div class="wave-bar" style="--d:0.1s"></div>
-      <div class="wave-bar" style="--d:0.2s"></div>
-      <div class="wave-bar" style="--d:0.3s"></div>
-      <div class="wave-bar" style="--d:0.4s"></div>
-      <div class="wave-bar" style="--d:0.5s"></div>
-      <div class="wave-bar" style="--d:0.6s"></div>
-      <div class="wave-bar" style="--d:0.7s"></div>
-      <div class="wave-bar" style="--d:0.8s"></div>
-      <div class="wave-bar" style="--d:0.9s"></div>
-      <div class="wave-bar" style="--d:1.0s"></div>
-      <div class="wave-bar" style="--d:0.9s"></div>
-      <div class="wave-bar" style="--d:0.8s"></div>
-      <div class="wave-bar" style="--d:0.7s"></div>
-      <div class="wave-bar" style="--d:0.6s"></div>
-    </div>
-    <div class="floating-emojis">
-      <span class="fe fe1">🍼</span>
-      <span class="fe fe2">😴</span>
-      <span class="fe fe3">🤢</span>
-      <span class="fe fe4">💨</span>
-      <span class="fe fe5">😣</span>
-      <span class="fe fe6">😭</span>
-      <span class="fe fe7">🦷</span>
-    </div>
-  </div>
-</header>
+  <!-- ── Cursor Glow ── -->
+  <div class="cursor-glow" id="cursorGlow"></div>
 
-<!-- ── Upload Section ──────────────────────────────────────────── -->
-<section class="section" id="upload-section">
-  <div class="container">
-    <div class="section-header">
-      <h2>Upload Baby Cry Audio</h2>
-      <p>Upload a <code>.wav</code> file of your baby crying (3–10 seconds works best)</p>
-    </div>
-
-    <div class="upload-card glass-card" id="uploadCard">
-      <div class="drop-zone" id="dropZone">
-        <div class="drop-icon">🎙️</div>
-        <p class="drop-text">Drag &amp; drop a <strong>.wav</strong> file here</p>
-        <p class="drop-sub">or</p>
-        <label class="btn-primary" for="audioInput">
-          Browse File
-        </label>
-        <input type="file" id="audioInput" accept=".wav,audio/*" hidden />
-        <p class="file-hint">Supported: .wav · Max ~10 MB</p>
+  <!-- ── Navbar ── -->
+  <nav class="navbar" id="navbar">
+    <div class="nav-inner">
+      <div class="nav-logo">
+        <div class="logo-blob">🍼</div>
+        <span class="logo-text">Cry<span class="accent">Sense</span></span>
       </div>
+      <div class="nav-links">
+        <a href="#detect-section" class="nav-link">Detect</a>
+        <a href="#how-section" class="nav-link">How It Works</a>
+        <a href="#types-section" class="nav-link">Cry Types</a>
+        <a href="#model-section" class="nav-link">ML Model</a>
+      </div>
+      <div class="nav-status" id="modelStatus">
+        <span class="status-dot pulsing"></span>
+        <span class="status-text">Checking…</span>
+      </div>
+    </div>
+  </nav>
 
-      <!-- Selected file preview -->
-      <div class="file-preview hidden" id="filePreview">
-        <div class="file-icon">🎵</div>
-        <div class="file-info">
-          <p class="file-name" id="fileName">—</p>
-          <p class="file-size" id="fileSize">—</p>
-          <audio id="audioPlayer" controls class="audio-player"></audio>
+  <!-- ── Hero ── -->
+  <header class="hero" id="home">
+    <div class="hero-content reveal-up">
+      <div class="hero-badge">
+        <span class="badge-dot"></span>
+        <span>ML-Powered · Real-time · Hindi + English</span>
+      </div>
+      <h1 class="hero-title">
+        What Is Your<br />
+        <span class="gradient-text">Baby Saying?</span>
+      </h1>
+      <p class="hero-desc">
+        CrySense uses a deep CNN trained on thousands of real baby cry recordings.
+        Upload audio or listen live — know instantly if your baby is
+        <em>hungry</em>, <em>tired</em>, in <em>pain</em>, or needs <em>burping</em>.
+      </p>
+      <div class="hero-cta">
+        <a href="#detect-section" class="btn-primary">
+          <span class="btn-icon-wrap">🎙️</span>
+          Start Detection
+        </a>
+        <a href="#how-section" class="btn-outline">How It Works ↓</a>
+      </div>
+      <div class="hero-stats">
+        <div class="hstat"><span class="hstat-val">97%</span><span class="hstat-lab">Accuracy</span></div>
+        <div class="hstat-div"></div>
+        <div class="hstat"><span class="hstat-val">5</span><span class="hstat-lab">Cry Types</span></div>
+        <div class="hstat-div"></div>
+        <div class="hstat"><span class="hstat-val">2x</span><span class="hstat-lab">Languages</span></div>
+      </div>
+    </div>
+
+    <div class="hero-visual reveal-right">
+      <div class="hero-orb-card glass-card">
+        <div class="waveform-anim" id="heroWave">
+          <div class="wave-bar" style="--d:0s"></div>
+          <div class="wave-bar" style="--d:0.1s"></div>
+          <div class="wave-bar" style="--d:0.2s"></div>
+          <div class="wave-bar" style="--d:0.3s"></div>
+          <div class="wave-bar" style="--d:0.4s"></div>
+          <div class="wave-bar" style="--d:0.5s"></div>
+          <div class="wave-bar" style="--d:0.6s"></div>
+          <div class="wave-bar" style="--d:0.7s"></div>
+          <div class="wave-bar" style="--d:0.8s"></div>
+          <div class="wave-bar" style="--d:0.9s"></div>
+          <div class="wave-bar" style="--d:1.0s"></div>
+          <div class="wave-bar" style="--d:0.9s"></div>
+          <div class="wave-bar" style="--d:0.8s"></div>
+          <div class="wave-bar" style="--d:0.7s"></div>
+          <div class="wave-bar" style="--d:0.6s"></div>
+          <div class="wave-bar" style="--d:0.5s"></div>
+          <div class="wave-bar" style="--d:0.4s"></div>
+          <div class="wave-bar" style="--d:0.3s"></div>
+          <div class="wave-bar" style="--d:0.2s"></div>
+          <div class="wave-bar" style="--d:0.1s"></div>
         </div>
-        <button class="btn-ghost btn-sm" id="changeFile">Change</button>
-      </div>
+        <div class="hero-card-label">Live Audio Analysis</div>
 
-      <button class="btn-primary btn-analyze" id="analyzeBtn" disabled>
-        <span class="btn-icon">🔍</span>
-        <span class="btn-text">Analyze Cry</span>
-      </button>
-    </div>
-
-    <!-- Loading State -->
-    <div class="loading-card glass-card hidden" id="loadingCard">
-      <div class="spinner-ring"></div>
-      <p class="loading-text">Analyzing audio with CNN…</p>
-      <div class="loading-steps">
-        <div class="step active" id="step1">📡 Extracting MFCC + Delta Features</div>
-        <div class="step" id="step2">🧠 Running CNN Inference</div>
-        <div class="step" id="step3">📊 Generating Emotion Report</div>
+        <!-- Floating Emotion Pills -->
+        <div class="emotion-pill pill-1">🍼 Hungry</div>
+        <div class="emotion-pill pill-2">😴 Tired</div>
+        <div class="emotion-pill pill-3">🤢 Belly Pain</div>
+        <div class="emotion-pill pill-4">💨 Burping</div>
+        <div class="emotion-pill pill-5">😣 Discomfort</div>
       </div>
     </div>
+  </header>
 
-    <!-- Result Card -->
-    <div class="result-card glass-card hidden" id="resultCard">
+  <!-- ── Detect Section (Upload + Live Mic) ── -->
+  <section class="section" id="detect-section">
+    <div class="container">
+      <div class="section-header reveal-up">
+        <div class="section-tag">🔍 Detection</div>
+        <h2>Analyze Baby Cry</h2>
+        <p>Upload a .wav file <em>or</em> use your microphone for live real-time detection</p>
+      </div>
 
-      <!-- Main Prediction -->
-      <div class="result-header">
-        <div class="result-emoji" id="resultEmoji">👶</div>
-        <div>
-          <p class="result-label">Your baby is…</p>
-          <h3 class="result-title" id="resultTitle">—</h3>
-          <p class="result-sublabel" id="resultSubLabel">—</p>
-          <p class="result-confidence" id="resultConfidence">—</p>
+      <!-- Mode Tabs -->
+      <div class="mode-tabs reveal-up">
+        <button class="mode-tab active" id="tabUpload" onclick="switchMode('upload')">
+          <span>📁</span> Upload File
+        </button>
+        <button class="mode-tab" id="tabLive" onclick="switchMode('live')">
+          <span>🎤</span> Live Mic
+        </button>
+      </div>
+
+      <!-- ── UPLOAD MODE ── -->
+      <div class="detect-panel" id="uploadPanel">
+        <div class="upload-card glass-card">
+          <div class="drop-zone" id="dropZone">
+            <div class="drop-icon-wrap">
+              <span class="drop-icon">🎙️</span>
+              <div class="drop-ring"></div>
+            </div>
+            <p class="drop-text">Drag &amp; drop a <strong>.wav</strong> file here</p>
+            <p class="drop-sub">or</p>
+            <label class="btn-primary btn-sm-p" for="audioInput">Browse File</label>
+            <input type="file" id="audioInput" accept=".wav,audio/*" hidden />
+            <p class="file-hint">Supported: .wav · 3–10 seconds works best</p>
+          </div>
+
+          <div class="file-preview hidden" id="filePreview">
+            <div class="file-icon">🎵</div>
+            <div class="file-info">
+              <p class="file-name" id="fileName">—</p>
+              <p class="file-size" id="fileSize">—</p>
+              <audio id="audioPlayer" controls class="audio-player"></audio>
+            </div>
+            <button class="btn-outline btn-sm" id="changeFile">Change</button>
+          </div>
+
+          <button class="btn-primary btn-analyze" id="analyzeBtn" disabled>
+            <span>🔍</span> Analyze Cry
+          </button>
         </div>
-        <button class="btn-ghost btn-sm" id="tryAgainBtn">Try Again</button>
       </div>
 
-      <!-- Severity + Duration -->
-      <div class="sev-row">
-        <span class="sev-badge" id="sevBadge">—</span>
-        <span class="sev-note" id="sevNote">—</span>
-        <span class="duration-tip" id="durationTip">—</span>
-      </div>
+      <!-- ── LIVE MIC MODE ── -->
+      <div class="detect-panel hidden" id="livePanel">
+        <div class="live-card glass-card">
+          <div class="live-visual">
+            <div class="mic-btn-wrap">
+              <button class="mic-btn" id="micBtn" onclick="toggleMic()">
+                <span class="mic-icon">🎤</span>
+                <div class="mic-ring mic-ring-1"></div>
+                <div class="mic-ring mic-ring-2"></div>
+                <div class="mic-ring mic-ring-3"></div>
+              </button>
+              <p class="mic-label" id="micLabel">Tap to Start Listening</p>
+            </div>
 
-      <!-- Secondary / Inferred Emotion -->
-      <div class="inferred-box hidden" id="inferredBox">
-        <div class="inferred-header">
-          <span class="inferred-emoji" id="inferredEmoji">🔍</span>
-          <div>
-            <p class="inferred-label" id="inferredLabel">—</p>
-            <p class="inferred-desc" id="inferredDesc">—</p>
+            <!-- Live Waveform Canvas -->
+            <canvas class="live-wave-canvas" id="liveWaveCanvas" width="500" height="80"></canvas>
+
+            <!-- Timer -->
+            <div class="live-timer hidden" id="liveTimer">
+              <span class="timer-dot"></span>
+              <span id="timerText">Recording: 0s</span>
+            </div>
+          </div>
+
+          <!-- Live Status -->
+          <div class="live-status" id="liveStatus">
+            <div class="live-status-icon">👂</div>
+            <div>
+              <p class="live-status-title">Ready to Listen</p>
+              <p class="live-status-sub">Press the mic button. CrySense will automatically analyze every 4 seconds of
+                audio.</p>
+            </div>
+          </div>
+
+          <!-- Auto-analyze toggle -->
+          <div class="live-options">
+            <label class="toggle-wrap">
+              <input type="checkbox" id="autoAnalyze" checked />
+              <span class="toggle-track"><span class="toggle-thumb"></span></span>
+              <span class="toggle-label">Auto-analyze every 4 seconds</span>
+            </label>
           </div>
         </div>
-        <p class="inferred-tip" id="inferredTip">—</p>
       </div>
 
-      <!-- Language Toggle -->
-      <div class="lang-toggle">
-        <button class="lang-btn active" id="langEn" onclick="switchLang('en')">🇬🇧 English</button>
-        <button class="lang-btn" id="langHi" onclick="switchLang('hi')">🇮🇳 हिंदी</button>
+      <!-- Loading State -->
+      <div class="loading-card glass-card hidden" id="loadingCard">
+        <div class="spinner-ring"></div>
+        <p class="loading-text">Analyzing audio with CNN…</p>
+        <div class="loading-steps">
+          <div class="lstep" id="step1">📡 Extracting MFCC + Delta Features</div>
+          <div class="lstep" id="step2">🧠 Running CNN Inference</div>
+          <div class="lstep" id="step3">📊 Generating Emotion Report</div>
+        </div>
       </div>
 
-      <!-- Advice -->
-      <div class="advice-box" id="adviceBox">
-        <h4>💡 What to do:</h4>
-        <p id="adviceText">—</p>
-      </div>
+      <!-- Result Card -->
+      <div class="result-card glass-card hidden" id="resultCard">
+        <div class="result-source-badge" id="resultSource">📁 File Analysis</div>
 
-      <!-- Quick Tips -->
-      <div class="tips-section" id="tipsSection">
-        <h4>⚡ Quick Tips</h4>
-        <div class="tips-grid" id="tipsGrid"></div>
-      </div>
+        <div class="result-header">
+          <div class="result-emoji" id="resultEmoji">👶</div>
+          <div class="result-main">
+            <p class="result-label">Your baby is…</p>
+            <h3 class="result-title" id="resultTitle">—</h3>
+            <p class="result-sublabel" id="resultSubLabel">—</p>
+            <div class="confidence-bar-wrap">
+              <div class="confidence-bar-track">
+                <div class="confidence-bar-fill" id="confBar" style="width:0%"></div>
+              </div>
+              <span class="conf-pct" id="resultConfidence">—</span>
+            </div>
+          </div>
+          <button class="btn-outline btn-sm" id="tryAgainBtn">Try Again</button>
+        </div>
 
-      <!-- Doctor Warning -->
-      <div class="doctor-box" id="doctorBox">
-        <span class="doctor-icon">🩺</span>
-        <p id="doctorText">—</p>
-      </div>
+        <div class="sev-row">
+          <span class="sev-badge" id="sevBadge">—</span>
+          <span class="sev-note" id="sevNote">—</span>
+          <span class="duration-tip" id="durationTip"></span>
+        </div>
 
-      <!-- All Probability Bars -->
-      <div class="prob-section">
-        <h4>All Probabilities</h4>
-        <div class="prob-bars" id="probBars"></div>
-      </div>
+        <!-- Inferred Emotion -->
+        <div class="inferred-box hidden" id="inferredBox">
+          <div class="inferred-header">
+            <span class="inferred-emoji" id="inferredEmoji">🔍</span>
+            <div>
+              <p class="inferred-label" id="inferredLabel">—</p>
+              <p class="inferred-desc" id="inferredDesc">—</p>
+            </div>
+          </div>
+          <p class="inferred-tip" id="inferredTip">—</p>
+        </div>
 
-    </div>
-  </div>
-</section>
+        <!-- Language Toggle -->
+        <div class="lang-toggle">
+          <button class="lang-btn active" id="langEn" onclick="switchLang('en')">🇬🇧 English</button>
+          <button class="lang-btn" id="langHi" onclick="switchLang('hi')">🇮🇳 हिंदी</button>
+        </div>
 
-<!-- ── How It Works ────────────────────────────────────────────── -->
-<section class="section" id="how-section">
-  <div class="container">
-    <div class="section-header">
-      <h2>How It Works</h2>
-      <p>A full ML pipeline — from raw audio to actionable insights</p>
-    </div>
-    <div class="steps-grid">
-      <div class="step-card glass-card">
-        <div class="step-num">01</div>
-        <div class="step-icon">🎙️</div>
-        <h3>Audio Input</h3>
-        <p>Record or upload a WAV file. Even 3–5 seconds is enough for accurate detection.</p>
-      </div>
-      <div class="step-card glass-card">
-        <div class="step-num">02</div>
-        <div class="step-icon">📊</div>
-        <h3>MFCC + Delta Extraction</h3>
-        <p>40 MFCCs + Delta + Delta-Delta (120 features) are extracted using Librosa — 3× richer than basic MFCC.</p>
-      </div>
-      <div class="step-card glass-card">
-        <div class="step-num">03</div>
-        <div class="step-icon">🧠</div>
-        <h3>CNN Classification</h3>
-        <p>A 4-block deep CNN with GlobalAveragePooling processes features and classifies into 5 cry types with 91%+ accuracy.</p>
-      </div>
-      <div class="step-card glass-card">
-        <div class="step-num">04</div>
-        <div class="step-icon">💡</div>
-        <h3>Rich Emotion Report</h3>
-        <p>Get detailed advice in English & Hindi, quick tips, secondary emotion inference, and doctor warnings.</p>
-      </div>
-    </div>
-  </div>
-</section>
+        <div class="advice-box" id="adviceBox">
+          <h4>💡 What to do:</h4>
+          <p id="adviceText">—</p>
+        </div>
 
-<!-- ── Cry Types ───────────────────────────────────────────────── -->
-<section class="section" id="types-section">
-  <div class="container">
-    <div class="section-header">
-      <h2>Cry Types Detected</h2>
-      <p>5 primary AI-detected + 5 rule-based inferred emotional states</p>
-    </div>
+        <div class="tips-section hidden" id="tipsSection">
+          <h4>⚡ Quick Tips</h4>
+          <div class="tips-grid" id="tipsGrid"></div>
+        </div>
 
-    <p class="types-subhead">🤖 AI Model Detects (5 Primary)</p>
-    <div class="types-grid">
-      <div class="type-card glass-card" style="--accent:#ef4444">
-        <div class="type-emoji">🤢</div>
-        <h3>Belly Pain</h3>
-        <p>Gas, colic, or stomach cramps. Sharp, intense cry often with leg pulling.</p>
-      </div>
-      <div class="type-card glass-card" style="--accent:#f97316">
-        <div class="type-emoji">💨</div>
-        <h3>Burping</h3>
-        <p>Trapped air after feeding. Short, rhythmic cry that eases when burped.</p>
-      </div>
-      <div class="type-card glass-card" style="--accent:#eab308">
-        <div class="type-emoji">😣</div>
-        <h3>Discomfort</h3>
-        <p>Wet diaper, wrong temperature, tight clothing, or skin irritation.</p>
-      </div>
-      <div class="type-card glass-card" style="--accent:#22c55e">
-        <div class="type-emoji">🍼</div>
-        <h3>Hungry</h3>
-        <p>Classic hunger cry — rhythmic and builds in intensity over time.</p>
-      </div>
-      <div class="type-card glass-card" style="--accent:#6c63ff">
-        <div class="type-emoji">😴</div>
-        <h3>Tired</h3>
-        <p>Overtired baby crying. Whiny, accompanied by eye rubbing & yawning.</p>
+        <div class="doctor-box hidden" id="doctorBox">
+          <span class="doctor-icon">🩺</span>
+          <p id="doctorText">—</p>
+        </div>
+
+        <div class="prob-section">
+          <h4>All Probabilities</h4>
+          <div class="prob-bars" id="probBars"></div>
+        </div>
       </div>
     </div>
+  </section>
 
-    <p class="types-subhead" style="margin-top:2.5rem">🔍 Rule-Based Inferred (5 Secondary)</p>
-    <div class="types-grid inferred-grid">
-      <div class="type-card glass-card" style="--accent:#dc2626">
-        <div class="type-emoji">😭</div>
-        <h3>Colic</h3>
-        <p>Intense inconsolable crying in an otherwise healthy baby, often evenings. (3+ hrs/day)</p>
+  <!-- ── How It Works ── -->
+  <section class="section" id="how-section">
+    <div class="container">
+      <div class="section-header reveal-up">
+        <div class="section-tag">⚙️ Pipeline</div>
+        <h2>How It Works</h2>
+        <p>A full ML pipeline — from raw audio to actionable parent guidance</p>
       </div>
-      <div class="type-card glass-card" style="--accent:#7c3aed">
-        <div class="type-emoji">😨</div>
-        <h3>Scared / Startled</h3>
-        <p>Sudden loud noise or unfamiliar environment triggering a fear response.</p>
-      </div>
-      <div class="type-card glass-card" style="--accent:#0284c7">
-        <div class="type-emoji">🥺</div>
-        <h3>Lonely</h3>
-        <p>Baby wants to be held and needs human connection. Completely normal!</p>
-      </div>
-      <div class="type-card glass-card" style="--accent:#0891b2">
-        <div class="type-emoji">🌀</div>
-        <h3>Overstimulated</h3>
-        <p>Too much noise, lights, or activity. Baby needs a calm, quiet space.</p>
-      </div>
-      <div class="type-card glass-card" style="--accent:#b45309">
-        <div class="type-emoji">🦷</div>
-        <h3>Teething Pain</h3>
-        <p>Gum pain from new teeth (4–7 months). Drooling + chewing are signs.</p>
+      <div class="steps-grid">
+        <div class="step-card glass-card reveal-up" style="--delay:0s">
+          <div class="step-num">01</div>
+          <div class="step-icon">🎙️</div>
+          <h3>Audio Input</h3>
+          <p>Upload a WAV file or record live via microphone. Even 3–5 seconds is enough for accurate detection.</p>
+        </div>
+        <div class="step-card glass-card reveal-up" style="--delay:0.1s">
+          <div class="step-num">02</div>
+          <div class="step-icon">📊</div>
+          <h3>MFCC + Delta</h3>
+          <p>40 MFCCs + Delta + Delta-Delta (120 features) extracted using Librosa — 3× richer than basic MFCC.</p>
+        </div>
+        <div class="step-card glass-card reveal-up" style="--delay:0.2s">
+          <div class="step-num">03</div>
+          <div class="step-icon">🧠</div>
+          <h3>CNN Classification</h3>
+          <p>4-block deep CNN with GlobalAveragePooling classifies into 5 cry types with 97% accuracy.</p>
+        </div>
+        <div class="step-card glass-card reveal-up" style="--delay:0.3s">
+          <div class="step-num">04</div>
+          <div class="step-icon">💡</div>
+          <h3>Rich Report</h3>
+          <p>Detailed advice in English & Hindi, quick tips, secondary emotion inference, and doctor warnings.</p>
+        </div>
       </div>
     </div>
-  </div>
-</section>
+  </section>
 
-<!-- ── Model Stats ──────────────────────────────────────────────── -->
-<section class="section" id="model-section">
-  <div class="container">
-    <div class="section-header">
-      <h2>ML Model Stats</h2>
-      <p>Live information from the trained CNN model</p>
-    </div>
-    <div class="stats-grid" id="statsGrid">
-      <div class="stat-card glass-card">
-        <div class="stat-icon">🎯</div>
-        <div class="stat-val" id="statAcc">—</div>
-        <div class="stat-label">Best Val Accuracy</div>
+  <!-- ── Cry Types ── -->
+  <section class="section" id="types-section">
+    <div class="container">
+      <div class="section-header reveal-up">
+        <div class="section-tag">🏷️ Classes</div>
+        <h2>Cry Types Detected</h2>
+        <p>5 AI-detected primary + 5 rule-based inferred emotional states</p>
       </div>
-      <div class="stat-card glass-card">
-        <div class="stat-icon">🏗️</div>
-        <div class="stat-val" id="statParams">—</div>
-        <div class="stat-label">Model Parameters</div>
-      </div>
-      <div class="stat-card glass-card">
-        <div class="stat-icon">🏷️</div>
-        <div class="stat-val">5+5</div>
-        <div class="stat-label">Emotion States</div>
-      </div>
-      <div class="stat-card glass-card">
-        <div class="stat-icon">📦</div>
-        <div class="stat-val">CNN</div>
-        <div class="stat-label">Architecture</div>
-      </div>
-    </div>
 
-    <!-- Training Chart -->
-    <div class="chart-card glass-card" id="chartCard" style="display:none">
-      <h3>Training Curves</h3>
-      <div class="chart-tabs">
-        <button class="tab-btn active" data-metric="accuracy" id="tabAcc">Accuracy</button>
-        <button class="tab-btn"        data-metric="loss"     id="tabLoss">Loss</button>
+      <p class="types-subhead reveal-up">🤖 AI Model Detects (5 Primary)</p>
+      <div class="types-grid">
+        <div class="type-card glass-card reveal-up" style="--accent:#ef4444;--delay:0s">
+          <div class="type-emoji">🤢</div>
+          <h3>Belly Pain</h3>
+          <p>Gas, colic, or stomach cramps. Sharp, intense cry often with leg pulling.</p>
+        </div>
+        <div class="type-card glass-card reveal-up" style="--accent:#f97316;--delay:0.08s">
+          <div class="type-emoji">💨</div>
+          <h3>Burping</h3>
+          <p>Trapped air after feeding. Short, rhythmic cry that eases when burped.</p>
+        </div>
+        <div class="type-card glass-card reveal-up" style="--accent:#eab308;--delay:0.16s">
+          <div class="type-emoji">😣</div>
+          <h3>Discomfort</h3>
+          <p>Wet diaper, wrong temperature, tight clothing, or skin irritation.</p>
+        </div>
+        <div class="type-card glass-card reveal-up" style="--accent:#22c55e;--delay:0.24s">
+          <div class="type-emoji">🍼</div>
+          <h3>Hungry</h3>
+          <p>Classic hunger cry — rhythmic and builds in intensity over time.</p>
+        </div>
+        <div class="type-card glass-card reveal-up" style="--accent:#6c63ff;--delay:0.32s">
+          <div class="type-emoji">😴</div>
+          <h3>Tired</h3>
+          <p>Overtired baby crying. Whiny, accompanied by eye rubbing & yawning.</p>
+        </div>
       </div>
-      <canvas id="trainChart"></canvas>
-    </div>
 
-    <div class="not-trained-note glass-card" id="notTrainedNote">
-      <div class="nt-icon">⚠️</div>
-      <div>
-        <h3>Model Not Trained Yet</h3>
-        <p>Run <code>python train_model.py</code> to train the CNN on your dataset.</p>
-        <div class="code-block">python train_model.py</div>
+      <p class="types-subhead reveal-up" style="margin-top:3rem">🔍 Rule-Based Inferred (5 Secondary)</p>
+      <div class="types-grid">
+        <div class="type-card glass-card reveal-up" style="--accent:#dc2626;--delay:0s">
+          <div class="type-emoji">😭</div>
+          <h3>Colic</h3>
+          <p>Intense inconsolable crying in an otherwise healthy baby, often evenings.</p>
+        </div>
+        <div class="type-card glass-card reveal-up" style="--accent:#7c3aed;--delay:0.08s">
+          <div class="type-emoji">😨</div>
+          <h3>Scared</h3>
+          <p>Sudden loud noise or unfamiliar environment triggering fear response.</p>
+        </div>
+        <div class="type-card glass-card reveal-up" style="--accent:#0284c7;--delay:0.16s">
+          <div class="type-emoji">🥺</div>
+          <h3>Lonely</h3>
+          <p>Baby wants to be held and needs human connection. Completely normal!</p>
+        </div>
+        <div class="type-card glass-card reveal-up" style="--accent:#0891b2;--delay:0.24s">
+          <div class="type-emoji">🌀</div>
+          <h3>Overstimulated</h3>
+          <p>Too much noise, lights, or activity. Baby needs a calm, quiet space.</p>
+        </div>
+        <div class="type-card glass-card reveal-up" style="--accent:#b45309;--delay:0.32s">
+          <div class="type-emoji">🦷</div>
+          <h3>Teething</h3>
+          <p>Gum pain from new teeth (4–7 months). Drooling + chewing are signs.</p>
+        </div>
       </div>
     </div>
-  </div>
-</section>
+  </section>
 
-<!-- ── Footer ──────────────────────────────────────────────────── -->
-<footer class="footer">
-  <div class="container footer-inner">
-    <div class="footer-logo">
-      <span class="logo-icon">🍼</span>
-      <span class="logo-text">Cry<span class="accent">Sense</span></span>
+  <!-- ── Model Stats ── -->
+  <section class="section" id="model-section">
+    <div class="container">
+      <div class="section-header reveal-up">
+        <div class="section-tag">📈 Stats</div>
+        <h2>ML Model Stats</h2>
+        <p>Live information from the trained CNN model</p>
+      </div>
+      <div class="stats-grid">
+        <div class="stat-card glass-card reveal-up" style="--delay:0s">
+          <div class="stat-icon">🎯</div>
+          <div class="stat-val" id="statAcc">—</div>
+          <div class="stat-label">Best Val Accuracy</div>
+        </div>
+        <div class="stat-card glass-card reveal-up" style="--delay:0.1s">
+          <div class="stat-icon">🏗️</div>
+          <div class="stat-val" id="statParams">—</div>
+          <div class="stat-label">Model Parameters</div>
+        </div>
+        <div class="stat-card glass-card reveal-up" style="--delay:0.2s">
+          <div class="stat-icon">🏷️</div>
+          <div class="stat-val">5+5</div>
+          <div class="stat-label">Emotion States</div>
+        </div>
+        <div class="stat-card glass-card reveal-up" style="--delay:0.3s">
+          <div class="stat-icon">📦</div>
+          <div class="stat-val">CNN</div>
+          <div class="stat-label">Architecture</div>
+        </div>
+      </div>
+
+      <div class="chart-card glass-card reveal-up" id="chartCard" style="display:none">
+        <h3>Training Curves</h3>
+        <div class="chart-tabs">
+          <button class="tab-btn active" data-metric="accuracy">Accuracy</button>
+          <button class="tab-btn" data-metric="loss">Loss</button>
+        </div>
+        <canvas id="trainChart"></canvas>
+      </div>
+
+      <div class="not-trained-note glass-card reveal-up" id="notTrainedNote">
+        <div class="nt-icon">⚠️</div>
+        <div>
+          <h3>Model Not Trained Yet</h3>
+          <p>Run <code>python train_model.py</code> to train the CNN.</p>
+          <div class="code-block">python train_model.py</div>
+        </div>
+      </div>
     </div>
-    <p class="footer-desc">
-      AI-powered baby cry detection using Deep Learning &amp; Audio Signal Processing.<br/>
-      Detects 5 AI classes + 5 rule-based inferred emotional states.
-    </p>
-    <p class="footer-copy">Built with ❤️ using TensorFlow, Librosa &amp; Flask</p>
-  </div>
-</footer>
+  </section>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-<script src="/static/app.js"></script>
+  <!-- ── Footer ── -->
+  <footer class="footer">
+    <div class="container footer-inner">
+      <div class="footer-logo">
+        <span class="logo-icon">🍼</span>
+        <span class="logo-text">Cry<span class="accent">Sense</span></span>
+      </div>
+      <p class="footer-desc">AI-powered baby cry detection using Deep Learning & Audio Signal Processing.</p>
+      <p class="footer-copy">Built with ❤️ using TensorFlow, Librosa & Flask</p>
+    </div>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="/static/app.js"></script>
 </body>
+
 </html>
