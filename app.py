@@ -271,34 +271,34 @@ def load_resources():
 
 
 
-# ── Feature Extraction (matches train_model.py v5) ───────────────────────
-def extract_features(file_path):
+import cv2
 
-    y, sr = librosa.load(
-        file_path,
-        sr=16000,
-        duration=5,
-        mono=True
-    )
+# ── Feature Extraction (Matches train_model.py v7 ULTIMATE) ──────────────────
+def extract_features(file_path: str) -> np.ndarray:
+    SR         = 22050
+    DURATION   = 7
+    IMG_SIZE   = 224
 
-    # Normalize audio
-    y = librosa.util.normalize(y)
+    y, sr = librosa.load(file_path, sr=SR, duration=DURATION, mono=True)
 
-    # Remove silence
-    y, _ = librosa.effects.trim(y, top_db=20)
+    # 1. Log-Mel
+    mel = librosa.feature.melspectrogram(y=y, sr=sr, n_mels=128, fmax=8000)
+    mel_db = librosa.power_to_db(mel, ref=np.max)
+    
+    # 2. Deltas
+    delta = librosa.feature.delta(mel_db)
+    delta2 = librosa.feature.delta(mel_db, order=2)
+    
+    # Resize and stack to RGB
+    def resize(data):
+        data = (data - data.min()) / (data.max() - data.min() + 1e-8)
+        data = (data * 255).astype(np.uint8)
+        return cv2.resize(data, (IMG_SIZE, IMG_SIZE), interpolation=cv2.INTER_CUBIC)
 
-    # YAMNet embeddings
-    scores, embeddings, spectrogram = yamnet_model(y)
+    img = np.stack([resize(mel_db), resize(delta), resize(delta2)], axis=-1)
+    return img[np.newaxis, ...].astype(np.float32) / 255.0
 
-    embedding = tf.reduce_mean(
-        embeddings,
-        axis=0
-    )
 
-    return np.expand_dims(
-        embedding.numpy(),
-        axis=0
-    )
 
 # ── Prediction ─────────────────────────────────────────────────────────────────
 def run_prediction(file_path: str) -> dict:
