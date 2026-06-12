@@ -1,9 +1,17 @@
-# ── Trained Model (large file ~34MB) ──────────────────
+# ── Trained Model (large file ~7MB) ──────────────────
 crysense_model.h5
 
 # ── Datasets (raw .wav files) ──────────────────────────
 dataset1/
 aug-dataset1/
+clean-dataset-v17/
+donateacry-corpus/
+*.wav
+
+# ── Models and cache ───────────────────────────────────
+tfhub_modules/
+*.pkl
+model_meta.json
 
 # ── Python cache ───────────────────────────────────────
 __pycache__/
@@ -15,7 +23,10 @@ __pycache__/
 venv/
 env/
 .env
+scratch/
 
 # ── OS files ───────────────────────────────────────────
 .DS_Store
 Thumbs.db
+
+

@@ -9,6 +9,9 @@ Endpoints:
 """
 
 import os
+# Set TFHUB cache directory in workspace before any tensorflow imports
+os.environ["TFHUB_CACHE_DIR"] = os.path.abspath("./tfhub_modules")
+
 import json
 import pickle
 import tempfile
@@ -21,6 +24,27 @@ from flask_cors import CORS
 import warnings
 warnings.filterwarnings('ignore')
 
+import subprocess
+import sys
+import shutil
+import matplotlib
+matplotlib.use('Agg') # Headless backend for Flask threads
+import matplotlib.pyplot as plt
+import librosa.display
+
+# ── Model Meta (dual-branch config) ───────────────────────────────────────────
+MODEL_META_PATH = 'model_meta.json'
+_meta = {}
+if os.path.exists(MODEL_META_PATH):
+    with open(MODEL_META_PATH) as f:
+        _meta = json.load(f)
+
+N_MELS      = _meta.get('n_mels', 128)
+TIME_FRAMES = _meta.get('time_frames', 215)
+N_FFT       = _meta.get('n_fft', 2048)
+HOP_LENGTH  = _meta.get('hop_length', 512)
+IS_DUAL     = bool(_meta)  # True if v18+ dual-branch model
+
 # ── Paths ─────────────────────────────────────────────────────────────────────
 MODEL_PATH   = 'crysense_model.h5'
 ENCODER_PATH = 'label_encoder.pkl'
@@ -32,21 +56,10 @@ CORS(app)
 model            = None
 label_enc        = None
 training_history = {}
+
 print("Loading YAMNet...")
 yamnet_model = hub.load("https://tfhub.dev/google/yamnet/1")
 print("YAMNet loaded.")
-
-def extract_embedding(y):
-    scores, embeddings, spectrogram = yamnet_model(y)
-    embedding = tf.reduce_mean(embeddings, axis=0)
-    return embedding.numpy()
-
-def load_model():
-    global model, label_enc
-    model = tf.keras.models.load_model(MODEL_PATH)
-    with open(ENCODER_PATH, 'rb') as f:
-        label_enc = pickle.load(f)
-    print("Model loaded.")
 # ── Rich Emotion Data ──────────────────────────────────────────────────────────
 CRY_INFO = {
     'belly_pain': {
@@ -245,7 +258,6 @@ def infer_secondary_emotion(prediction: str, confidence: float, all_probs: dict)
 def load_resources():
     global model, label_enc, training_history
     try:
-        import tensorflow as tf
         if os.path.exists(MODEL_PATH):
             model = tf.keras.models.load_model(MODEL_PATH)
             print(f"[OK] Model loaded from {MODEL_PATH}")
@@ -254,6 +266,7 @@ def load_resources():
     except Exception as e:
         print(f"[ERR] Error loading model: {e}")
 
+    # Load label encoder
     try:
         if os.path.exists(ENCODER_PATH):
             with open(ENCODER_PATH, 'rb') as f:
@@ -270,34 +283,167 @@ def load_resources():
         pass
 
 
+# ── Feature Extraction (v18 Dual-Branch: CNN + YAMNet) ─────────────────────────
+SR       = 16000
+DURATION = 7
 
-import cv2
+def clean_audio(y):
+    return librosa.util.normalize(y)
 
-# ── Feature Extraction (Matches train_model.py v7 ULTIMATE) ──────────────────
-def extract_features(file_path: str) -> np.ndarray:
-    SR         = 22050
-    DURATION   = 7
-    IMG_SIZE   = 224
+def _load_uniform(file_path):
+    """Load audio directly at 16kHz to preserve high-frequency crying details."""
+    y, _ = librosa.load(file_path, sr=16000, duration=DURATION, mono=True)
+    if len(y) < 16000 * 0.5:
+        raise ValueError("Audio clip is too short or empty")
+    y = clean_audio(y)
+    target_len = SR * DURATION
+    if len(y) < target_len:
+        y = np.pad(y, (0, target_len - len(y)), mode='constant')
+    else:
+        y = y[:target_len]
+    return y.astype(np.float32)
 
-    y, sr = librosa.load(file_path, sr=SR, duration=DURATION, mono=True)
-
-    # 1. Log-Mel
-    mel = librosa.feature.melspectrogram(y=y, sr=sr, n_mels=128, fmax=8000)
+def _extract_mel(y):
+    """Branch 1: Log-Mel-Spectrogram → (1, N_MELS, TIME_FRAMES, 1)."""
+    mel = librosa.feature.melspectrogram(
+        y=y, sr=SR, n_mels=N_MELS, n_fft=N_FFT, hop_length=HOP_LENGTH, center=False
+    )
     mel_db = librosa.power_to_db(mel, ref=np.max)
-    
-    # 2. Deltas
-    delta = librosa.feature.delta(mel_db)
-    delta2 = librosa.feature.delta(mel_db, order=2)
-    
-    # Resize and stack to RGB
-    def resize(data):
-        data = (data - data.min()) / (data.max() - data.min() + 1e-8)
-        data = (data * 255).astype(np.uint8)
-        return cv2.resize(data, (IMG_SIZE, IMG_SIZE), interpolation=cv2.INTER_CUBIC)
+    mel_db = (mel_db - mel_db.min()) / (mel_db.max() - mel_db.min() + 1e-8)
+    if mel_db.shape[1] < TIME_FRAMES:
+        mel_db = np.pad(mel_db, ((0, 0), (0, TIME_FRAMES - mel_db.shape[1])), mode='constant')
+    else:
+        mel_db = mel_db[:, :TIME_FRAMES]
+    return mel_db[:, :, np.newaxis][np.newaxis, ...].astype(np.float32)  # (1,128,215,1)
 
-    img = np.stack([resize(mel_db), resize(delta), resize(delta2)], axis=-1)
-    return img[np.newaxis, ...].astype(np.float32) / 255.0
+def _extract_yamnet_mfcc(y):
+    """Branch 2: YAMNet mean+max + MFCCs → (1, 2148)."""
+    scores, embeddings, _ = yamnet_model(y)
+    emb = embeddings.numpy()
+    yamnet_feats = np.concatenate([np.mean(emb, axis=0), np.max(emb, axis=0)])  # 2048
 
+    mfcc     = librosa.feature.mfcc(y=y, sr=SR, n_mfcc=40)
+    centroid = librosa.feature.spectral_centroid(y=y, sr=SR)
+    contrast = librosa.feature.spectral_contrast(y=y, sr=SR)
+    zcr      = librosa.feature.zero_crossing_rate(y=y)
+    rms      = librosa.feature.rms(y=y)
+
+    trad = np.concatenate([
+        np.mean(mfcc, axis=1), np.std(mfcc, axis=1),
+        [np.mean(centroid), np.std(centroid)],
+        np.mean(contrast, axis=1), np.std(contrast, axis=1),
+        [np.mean(zcr), np.std(zcr)],
+        [np.mean(rms), np.std(rms)]
+    ])
+    return np.concatenate([yamnet_feats, trad]).reshape(1, -1).astype(np.float32)
+
+def extract_features(file_path: str):
+    """Returns model input(s): list [mel, yamnet] for dual-branch, or single array for legacy."""
+    y = _load_uniform(file_path)
+    if IS_DUAL:
+        return [_extract_mel(y), _extract_yamnet_mfcc(y)]
+    else:
+        # Legacy single-branch fallback
+        scores, embeddings, _ = yamnet_model(y)
+        emb = embeddings.numpy()
+        yamnet_feats = np.concatenate([np.mean(emb, axis=0), np.max(emb, axis=0)])
+        
+        mfcc     = librosa.feature.mfcc(y=y, sr=SR, n_mfcc=40)
+        centroid = librosa.feature.spectral_centroid(y=y, sr=SR)
+        contrast = librosa.feature.spectral_contrast(y=y, sr=SR)
+        zcr      = librosa.feature.zero_crossing_rate(y=y)
+        rms      = librosa.feature.rms(y=y)
+        
+        chroma   = librosa.feature.chroma_stft(y=y, sr=SR)
+        rolloff  = librosa.feature.spectral_rolloff(y=y, sr=SR)
+        
+        mel      = librosa.feature.melspectrogram(y=y, sr=SR, n_mels=40)
+        mel_db   = librosa.power_to_db(mel, ref=np.max)
+        
+        trad = np.concatenate([
+            np.mean(mfcc, axis=1), np.std(mfcc, axis=1),
+            [np.mean(centroid), np.std(centroid)],
+            np.mean(contrast, axis=1), np.std(contrast, axis=1),
+            [np.mean(zcr), np.std(zcr)],
+            [np.mean(rms), np.std(rms)],
+            np.mean(chroma, axis=1), np.std(chroma, axis=1),
+            [np.mean(rolloff), np.std(rolloff)],
+            np.mean(mel_db, axis=1), np.std(mel_db, axis=1)
+        ])
+        feat = np.concatenate([yamnet_feats, trad]).reshape(1, -1).astype(np.float32)
+        return feat
+
+
+# ── Visual Spectrogram Generation & Popup Window Trigger ───────────────────────
+def generate_spectrogram_plot(audio_path, prediction_label):
+    """Generate waveform + MFCC plot and save as static/temp_plot.png."""
+    try:
+        y, sr = librosa.load(audio_path, sr=16000, mono=True)
+        y = librosa.util.normalize(y)
+        mfccs = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=40)
+        
+        info = CRY_INFO.get(prediction_label, {})
+        color = info.get('color', '#22d3ee')
+        emoji = info.get('emoji', '👶')
+        label = info.get('label', prediction_label.replace('_', ' ').title())
+        
+        plt.rcParams['text.color'] = '#e2e8f0'
+        plt.rcParams['axes.labelcolor'] = '#94a3b8'
+        plt.rcParams['xtick.color'] = '#64748b'
+        plt.rcParams['ytick.color'] = '#64748b'
+        
+        fig = plt.figure(figsize=(10, 5.5), facecolor='#090d16')
+        fig.suptitle(
+            f"CrySense Analysis: {emoji} {label.upper()}",
+            color=color,
+            fontsize=14,
+            fontweight='bold',
+            y=0.96
+        )
+        
+        # Plot 1: Waveform
+        ax1 = plt.subplot(2, 1, 1, facecolor='#0d1321')
+        librosa.display.waveshow(y, sr=sr, ax=ax1, color=color, alpha=0.85)
+        ax1.set_title("RAW AUDIO INPUT (AMPLITUDE VS TIME)", color='#94a3b8', fontsize=9, fontweight='bold', pad=5)
+        ax1.grid(True, linestyle=':', alpha=0.2, color='#ffffff')
+        
+        # Plot 2: Spectrogram
+        ax2 = plt.subplot(2, 1, 2, facecolor='#0d1321')
+        img = librosa.display.specshow(mfccs, x_axis='time', sr=sr, ax=ax2, cmap='viridis')
+        ax2.set_title("EXTRACTED MFCC SPECTROGRAM (COEFFICIENTS VS TIME)", color='#94a3b8', fontsize=9, fontweight='bold', pad=5)
+        
+        # Colorbar
+        cbar = fig.colorbar(img, ax=ax2, format='%+2.0f')
+        cbar.ax.yaxis.set_tick_params(color='#64748b')
+        plt.setp(cbar.ax.yaxis.get_ticklabels(), color='#94a3b8', fontsize=8)
+        
+        plt.tight_layout(rect=[0, 0.01, 1, 0.93])
+        
+        os.makedirs('static', exist_ok=True)
+        plot_path = os.path.join('static', 'temp_plot.png')
+        plt.savefig(plot_path, dpi=120, facecolor='#090d16')
+        plt.close(fig)
+        return True
+    except Exception as e:
+        print(f"[ERR] Failed to generate plot: {e}")
+        return False
+
+def trigger_visual_popup(audio_path, prediction_label):
+    """Save raw audio to static folder and launch visualize_prediction.py as subprocess."""
+    try:
+        os.makedirs('static', exist_ok=True)
+        persistent_path = os.path.join('static', 'temp_analysis.wav')
+        shutil.copy(audio_path, persistent_path)
+        
+        # Run python script asynchronously, forwarding stdout/stderr to server logs
+        subprocess.Popen(
+            [sys.executable, 'visualize_prediction.py', persistent_path, prediction_label],
+            stdout=sys.stdout,
+            stderr=sys.stderr
+        )
+        print(f"[OK] Visualizer subprocess launched for label: {prediction_label}")
+    except Exception as e:
+        print(f"[ERR] Failed to launch visualizer subprocess: {e}")
 
 
 # ── Prediction ─────────────────────────────────────────────────────────────────
@@ -306,8 +452,8 @@ def run_prediction(file_path: str) -> dict:
         return {'error': 'Model not loaded. Please run train_model.py first.'}
 
     try:
-        features = extract_features(file_path)
-        probs    = model.predict(features, verbose=0)[0]
+        feat = extract_features(file_path)
+        probs = model.predict(feat, verbose=0)[0]
         pred_idx = int(np.argmax(probs))
         pred_cls = label_enc.classes_[pred_idx]
         confidence = float(probs[pred_idx]) * 100
@@ -318,6 +464,11 @@ def run_prediction(file_path: str) -> dict:
             label_enc.classes_[i]: round(float(probs[i]) * 100, 2)
             for i in range(len(probs))
         }
+
+        # Generate scientific plot
+        generate_spectrogram_plot(file_path, pred_cls)
+        # Trigger desktop visualization popup
+        trigger_visual_popup(file_path, pred_cls)
 
         info = CRY_INFO.get(pred_cls, {})
 
@@ -339,6 +490,7 @@ def run_prediction(file_path: str) -> dict:
             'secondary_emotions': info.get('secondary_emotions', []),
             'inferred_emotion':   secondary,
             'all_probs':          all_probs,
+            'plot_url':           '/static/temp_plot.png',
             'status':             'success'
         }
         return result

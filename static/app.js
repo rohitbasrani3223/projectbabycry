@@ -65,9 +65,10 @@ function init3DTilt() {
       const cy = rect.top + rect.height / 2;
       const dx = (e.clientX - cx) / (rect.width / 2);
       const dy = (e.clientY - cy) / (rect.height / 2);
-      const tiltX = dy * -6;
-      const tiltY = dx * 6;
-      card.style.transform = `perspective(800px) rotateX(${tiltX}deg) rotateY(${tiltY}deg) translateY(-4px)`;
+      // Extremely subtle and premium max 2 degrees tilt
+      const tiltX = dy * -2.2;
+      const tiltY = dx * 2.2;
+      card.style.transform = `perspective(1000px) rotateX(${tiltX}deg) rotateY(${tiltY}deg) translateY(-2px)`;
     });
     card.addEventListener('mouseleave', () => {
       card.style.transform = '';
@@ -86,7 +87,7 @@ function initScrollReveal() {
     });
   }, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
 
-  document.querySelectorAll('.reveal-up, .reveal-right').forEach(el => obs.observe(el));
+  document.querySelectorAll('.reveal-up, .reveal-right, .reveal-3d-left, .reveal-3d-right, .reveal-3d-scale').forEach(el => obs.observe(el));
 }
 
 // ── Navbar Scroll ─────────────────────────────────────────────────
@@ -495,14 +496,20 @@ function drawLiveWave() {
 
     ctx.clearRect(0, 0, W, H);
 
+    // Get active theme colors dynamically
+    const themeAccent = getComputedStyle(document.body).getPropertyValue('--accent-lt').trim() || '#22d3ee';
+    const themeAccent2 = getComputedStyle(document.body).getPropertyValue('--accent2-lt').trim() || '#34d399';
+    const themeGlow = getComputedStyle(document.body).getPropertyValue('--accent-glow').trim() || 'rgba(34,211,238,0.35)';
+
     // Gradient stroke
     const grad = ctx.createLinearGradient(0, 0, W, 0);
-    grad.addColorStop(0, '#22d3ee');
-    grad.addColorStop(0.5, '#34d399');
-    grad.addColorStop(1, '#22d3ee');
+    grad.addColorStop(0, themeAccent);
+    grad.addColorStop(0.5, themeAccent2);
+    grad.addColorStop(1, themeAccent);
+    
     ctx.strokeStyle = grad;
     ctx.lineWidth = 2.5;
-    ctx.shadowColor = 'rgba(34,211,238,0.35)';
+    ctx.shadowColor = themeGlow;
     ctx.shadowBlur = 10;
 
     ctx.beginPath();
@@ -526,9 +533,11 @@ function clearLiveWave() {
   const ctx = liveWave.getContext('2d');
   ctx.clearRect(0, 0, liveWave.width, liveWave.height);
 
+  const themeBorder = getComputedStyle(document.body).getPropertyValue('--border').trim() || 'rgba(6,182,212,0.2)';
+
   // Draw flat idle line
   ctx.beginPath();
-  ctx.strokeStyle = 'rgba(6,182,212,0.2)';
+  ctx.strokeStyle = themeBorder;
   ctx.lineWidth = 1.5;
   ctx.moveTo(0, liveWave.height / 2);
   ctx.lineTo(liveWave.width, liveWave.height / 2);
@@ -601,6 +610,28 @@ function showResult(data) {
     doctorBox.classList.add('hidden');
   }
 
+  // Spectrogram plot display
+  const specSec = document.getElementById('spectrogramSection');
+  const specPlot = document.getElementById('resultPlot');
+  if (data.plot_url) {
+    specPlot.src = data.plot_url + '?t=' + new Date().getTime();
+    specSec.classList.remove('hidden');
+  } else {
+    specSec.classList.add('hidden');
+  }
+
+  // Care Plan report reset
+  const careSec = document.getElementById('careReportSection');
+  if (careSec) {
+    careSec.classList.remove('hidden');
+    document.getElementById('reportGeneratorState').classList.remove('hidden');
+    document.getElementById('reportLoadingState').classList.add('hidden');
+    document.getElementById('reportContentState').classList.add('hidden');
+    const actionsState = document.getElementById('reportActionsState');
+    if (actionsState) actionsState.classList.add('hidden');
+    document.getElementById('reportText').innerHTML = '';
+  }
+
   // Inferred Emotion
   const inferredBox = document.getElementById('inferredBox');
   const inferred = data.inferred_emotion;
@@ -670,9 +701,467 @@ function initIdleWave() {
   clearLiveWave();
 }
 
+// ── Theme Selection & Persistence ───────────────────────────────────
+function initTheme() {
+  const savedTheme = localStorage.getItem('crySenseTheme') || 'cyberpunk';
+  setTheme(savedTheme);
+}
+
+function setTheme(themeName) {
+  document.body.setAttribute('data-theme', themeName);
+  localStorage.setItem('crySenseTheme', themeName);
+  
+  // Update active state in dropdown list
+  document.querySelectorAll('.theme-opt').forEach(opt => {
+    opt.classList.toggle('active', opt.dataset.theme === themeName);
+  });
+  
+  // Close dropdown menu
+  const menu = document.getElementById('themeDropdown');
+  if (menu) menu.classList.remove('open');
+}
+
+function toggleThemeDropdown(event) {
+  event.stopPropagation();
+  const menu = document.getElementById('themeDropdown');
+  if (menu) menu.classList.toggle('open');
+}
+
+// Close dropdown if user clicks outside
+document.addEventListener('click', () => {
+  const menu = document.getElementById('themeDropdown');
+  if (menu) menu.classList.remove('open');
+});
+
+// ── Interactive Particles Simulation ──
+let particleCanvasElement = null;
+let particleCtx = null;
+let particles = [];
+const particleCount = 48;
+let mousePosition = { x: null, y: null };
+
+function initParticles() {
+  particleCanvasElement = document.getElementById('particleCanvas');
+  if (!particleCanvasElement) return;
+  particleCtx = particleCanvasElement.getContext('2d');
+  
+  resizeParticleCanvas();
+  window.addEventListener('resize', resizeParticleCanvas);
+  
+  // Track mouse movements
+  window.addEventListener('mousemove', (e) => {
+    mousePosition.x = e.clientX;
+    mousePosition.y = e.clientY;
+  });
+  window.addEventListener('mouseleave', () => {
+    mousePosition.x = null;
+    mousePosition.y = null;
+  });
+  
+  // Initialize nodes
+  particles = [];
+  for (let i = 0; i < particleCount; i++) {
+    particles.push({
+      x: Math.random() * window.innerWidth,
+      y: Math.random() * window.innerHeight,
+      vx: (Math.random() - 0.5) * 0.45,
+      vy: (Math.random() - 0.5) * 0.45,
+      radius: Math.random() * 2 + 1.2,
+      baseRadius: Math.random() * 2 + 1.2
+    });
+  }
+  
+  animateParticles();
+}
+
+function resizeParticleCanvas() {
+  if (!particleCanvasElement) return;
+  particleCanvasElement.width = window.innerWidth;
+  particleCanvasElement.height = window.innerHeight;
+}
+
+function animateParticles() {
+  if (!particleCtx || !particleCanvasElement) return;
+  requestAnimationFrame(animateParticles);
+  
+  particleCtx.clearRect(0, 0, particleCanvasElement.width, particleCanvasElement.height);
+  
+  // Fetch dynamic colors from the theme styling
+  const themeAccent = getComputedStyle(document.body).getPropertyValue('--accent-lt').trim() || '#22d3ee';
+  const rgbAccent = hexToRgb(themeAccent);
+  
+  // Draw particles
+  for (let i = 0; i < particles.length; i++) {
+    const p = particles[i];
+    
+    // Move
+    p.x += p.vx;
+    p.y += p.vy;
+    
+    // Boundary check
+    if (p.x < 0 || p.x > particleCanvasElement.width) p.vx *= -1;
+    if (p.y < 0 || p.y > particleCanvasElement.height) p.vy *= -1;
+    
+    // Mouse attraction/repulsion
+    if (mousePosition.x !== null && mousePosition.y !== null) {
+      const dx = mousePosition.x - p.x;
+      const dy = mousePosition.y - p.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < 180) {
+        // Subtle drag attraction
+        p.x += dx * 0.003;
+        p.y += dy * 0.003;
+        p.radius = p.baseRadius * 1.5;
+      } else {
+        p.radius = p.baseRadius;
+      }
+    }
+    
+    // Draw dot
+    particleCtx.beginPath();
+    particleCtx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+    particleCtx.fillStyle = `rgba(${rgbAccent.r}, ${rgbAccent.g}, ${rgbAccent.b}, 0.18)`;
+    particleCtx.fill();
+    
+    // Connect particles
+    for (let j = i + 1; j < particles.length; j++) {
+      const p2 = particles[j];
+      const dx = p.x - p2.x;
+      const dy = p.y - p2.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      
+      if (dist < 110) {
+        particleCtx.beginPath();
+        particleCtx.moveTo(p.x, p.y);
+        particleCtx.lineTo(p2.x, p2.y);
+        const alpha = (1 - dist / 110) * 0.065;
+        particleCtx.strokeStyle = `rgba(${rgbAccent.r}, ${rgbAccent.g}, ${rgbAccent.b}, ${alpha})`;
+        particleCtx.lineWidth = 0.8;
+        particleCtx.stroke();
+      }
+    }
+  }
+}
+
+// Utility to convert hex to rgb
+function hexToRgb(hex) {
+  // Expand shorthand form (e.g. "03F") to full form (e.g. "0033FF")
+  const shorthandRegex = /^#?([a-f\d])([a-f\d])([a-f\d])$/i;
+  hex = hex.replace(shorthandRegex, (m, r, g, b) => r + r + g + g + b + b);
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return result ? {
+    r: parseInt(result[1], 16),
+    g: parseInt(result[2], 16),
+    b: parseInt(result[3], 16)
+  } : { r: 34, g: 211, b: 238 }; // cyan default
+}
+
+// ── Scroll Depth Progress Indicator ──
+function initScrollProgress() {
+  window.addEventListener('scroll', () => {
+    const scrollProgress = document.getElementById('scrollProgress');
+    if (!scrollProgress) return;
+    
+    const winScroll = document.documentElement.scrollTop || document.body.scrollTop;
+    const height = document.documentElement.scrollHeight - document.documentElement.clientHeight;
+    const scrolled = (winScroll / height) * 100;
+    scrollProgress.style.width = scrolled + '%';
+  });
+}
+
+// ── Pediatric Care Plan Report Templates ──
+const CARE_PLAN_TEMPLATES = {
+  hungry: `
+<h5>🍼 FEEDING STRATEGY & SOOTHING ACTION PLAN</h5>
+<p>Based on CrySense acoustical markers, your baby is presenting a **Hunger Cry**. Rhythmic breathing gaps and sucking reflex cues verify this state.</p>
+
+<h5>⏰ IMMEDIATE STEPS</h5>
+<ul>
+  <li>**Feed Immediately**: Offer breast or bottle. Do not wait until crying becomes more intense as it makes latching harder and causes baby to swallow air.</li>
+  <li>**Rooting Checks**: Watch for baby turning head side-to-side, smacking lips, or sucking fingers. These are early cues for next feeds.</li>
+  <li>**Pace Feeding**: If bottle-feeding, keep baby upright and hold bottle horizontally to prevent choking.</li>
+</ul>
+
+<h5>👶 CLINICAL ADVICE & LONG-TERM CARE</h5>
+<ul>
+  <li>**Track Output**: Monitor wet diapers. A well-fed infant should produce 6+ heavy wet diapers per 24 hours.</li>
+  <li>**Feedings Schedule**: Newborns generally feed every 2-3 hours (8-12 times a day). Keep a log to understand your baby's routine.</li>
+</ul>
+  `,
+  belly_pain: `
+<h5>🤢 SOOTHING PLAN FOR BELLY PAIN & GAS</h5>
+<p>CrySense has detected acoustic patterns indicative of **Belly Pain**. Intense, high-pitched shrieks and sudden stops point towards intestinal pressure or colic.</p>
+
+<h5>⏰ IMMEDIATE STEPS</h5>
+<ul>
+  <li>**Bicycle Legs**: Lay baby on back and gently move their legs in a bicycling motion toward their abdomen to release trapped gas.</li>
+  <li>**Tummy Massage**: Rub baby's tummy gently in slow clockwise circles to match the digestion tract.</li>
+  <li>**Tummy Time**: Place baby tummy-down across your lap while supporting their head. Faint pressure helps release abdominal blocks.</li>
+</ul>
+
+<h5>👶 CLINICAL ADVICE & LONG-TERM CARE</h5>
+<ul>
+  <li>**Feed Position**: Hold baby slightly upright during feeds. Feed slower and burp mid-feed if they swallow air rapidly.</li>
+  <li>**Warning Cues**: If the baby has a fever, green vomit, or is completely inconsolable for over 3 hours, call your pediatrician immediately.</li>
+</ul>
+  `,
+  burping: `
+<h5>💨 DIGESTIVE PLAN & BURPING TECHNIQUE</h5>
+<p>Your baby is showing signs of trapped air or the need to **Burp**. Rhythmic, brief pauses with guttural cries show bubbles stuck in the throat or chest.</p>
+
+<h5>⏰ IMMEDIATE STEPS</h5>
+<ul>
+  <li>**Over-the-Shoulder Method**: Hold baby upright against your chest with chin resting on your shoulder. Support their bottom and gently pat or rub their back in upward motions.</li>
+  <li>**Sitting Upright Method**: Sit baby on your lap leaning slightly forward. Support their chest and chin with one hand (never grab the throat) and pat their back with the other.</li>
+  <li>**Lap Method**: Lay baby face-down across your lap, supporting their head so it's slightly higher than their chest. Pat back gently.</li>
+</ul>
+
+<h5>👶 CLINICAL ADVICE & LONG-TERM CARE</h5>
+<ul>
+  <li>**Burp Frequency**: Burp your baby every 1-2 ounces during bottle feeds, or when switching breasts.</li>
+  <li>**Reflux Tips**: Keep baby upright for 15-20 minutes after feedings to reduce spitting up.</li>
+</ul>
+  `,
+  discomfort: `
+<h5>😣 COMFORT AND TEMPERATURE REGULATION PLAN</h5>
+<p>The prediction indicates **Discomfort**. Rhythmic, whiny cries usually mean some physical stimulus is causing irritation (wet diaper, itchy clothing, room temperature, skin chafing).</p>
+
+<h5>⏰ IMMEDIATE STEPS</h5>
+<ul>
+  <li>**Diaper Inspection**: Check and change their diaper immediately. Even small amounts of wetness cause sensitive skin irritation.</li>
+  <li>**Temperature Check**: Feel baby's chest or back of neck (hands/feet are normally cold). If hot/sweaty, remove layers. If cold, add a swaddle layer.</li>
+  <li>**Clothing Check**: Check for tags, tight zippers, or hair tourniquets wrapped around fingers or toes.</li>
+</ul>
+
+<h5>👶 CLINICAL ADVICE & LONG-TERM CARE</h5>
+<ul>
+  <li>**Optimal Room Temp**: Keep the nursery between 20°C and 22°C (68°F - 72°F) which is clinically ideal for safe sleep.</li>
+  <li>**Chafing Care**: Apply barrier cream if skin redness or rash is observed. Use breathable cotton clothing.</li>
+</ul>
+  `,
+  tired: `
+<h5>😴 SLEEP RESTORATION & CALMING SYSTEM</h5>
+<p>CrySense has identified a **Tired Cry**. Whiny, nasal sounds with dropping pitch indicate overtiredness and sensory overload.</p>
+
+<h5>⏰ IMMEDIATE STEPS</h5>
+<ul>
+  <li>**Reduce Stimulation**: Instantly dim lights, turn off screens/music, and move to a quiet dark room.</li>
+  <li>**Snug Swaddle**: Swaddle baby snugly to restrict startle reflexes (Moro reflex) and provide a womb-like safety.</li>
+  <li>**Rhythmic Soothing**: Play low white noise (ocean waves or fan sound) and rock them gently with vertical movements.</li>
+</ul>
+
+<h5>👶 CLINICAL ADVICE & LONG-TERM CARE</h5>
+<ul>
+  <li>**Watch Sleep Cues**: Put baby down to sleep as soon as you see early yawning, eye-rubbing, or blank staring. Waiting too long makes them overtired and harder to soothe.</li>
+  <li>**Routine Building**: Maintain a calm bedtime routine (warm bath, soft book, quiet lullaby) to build positive sleep cues.</li>
+</ul>
+  `,
+  cold_hot: `
+<h5>🌡️ THERMAL COMFORT & REGULATION SYSTEM</h5>
+<p>The acoustics show **Thermal Discomfort** (too cold or too hot). Crying due to temperature shifts is characterized by urgent, high-intensity vocal stress.</p>
+
+<h5>⏰ IMMEDIATE STEPS</h5>
+<ul>
+  <li>**Feel Body Core**: Feel the baby's chest, neck, or back. If sweaty or hot, remove a layer of clothes. If cold, add a cotton layers or swaddle.</li>
+  <li>**Adjust Room Temp**: Ensure the nursery is set to the optimal temperature of 20°C - 22°C.</li>
+  <li>**Avoid Over-wrapping**: Wrapping too tightly when hot leads to heat rashes and increases SIDS risks. Ensure comfortable airflow.</li>
+</ul>
+
+<h5>👶 CLINICAL ADVICE & LONG-TERM CARE</h5>
+<ul>
+  <li>**Layering Rule**: Dress baby in one additional layer than what you would wear comfortably in the same environment.</li>
+  <li>**Fever Check**: If baby feels excessively hot and is lethargic, use a thermometer to check for fever. Call doctor if temperature is > 38°C (100.4°F).</li>
+</ul>
+  `,
+  uncertain: `
+<h5>👶 COMFORTING & INITIAL ASSESSMENT PLAN</h5>
+<p>Acoustic signals present an **Uncertain Cry**. It is recommended to perform a step-by-step soothing checks.</p>
+
+<h5>⏰ IMMEDIATE STEPS</h5>
+<ul>
+  <li>**Check Hunger First**: If it has been 2+ hours since last feed, offer milk.</li>
+  <li>**Inspect Diaper**: Ensure diaper is clean and dry.</li>
+  <li>**Skin-to-Skin**: Hold baby against your bare skin. Human touch naturally lowers heart rates and cortisol in infants.</li>
+  <li>**Sucking Comfort**: Offer a pacifier or clean finger to suck, which activates soothing reflex pathways.</li>
+</ul>
+  `
+};
+
+function generateCareReport() {
+  if (!currentResult) return;
+  
+  const genState = document.getElementById('reportGeneratorState');
+  const loadState = document.getElementById('reportLoadingState');
+  const contentState = document.getElementById('reportContentState');
+  const reportText = document.getElementById('reportText');
+  const actionsState = document.getElementById('reportActionsState');
+  
+  genState.classList.add('hidden');
+  loadState.classList.remove('hidden');
+  
+  // Simulate acoustic analysis processing
+  setTimeout(() => {
+    loadState.classList.add('hidden');
+    contentState.classList.remove('hidden');
+    if (actionsState) actionsState.classList.remove('hidden');
+    
+    // Fetch custom advice based on prediction
+    const pred = currentResult.prediction || 'uncertain';
+    const textHtml = CARE_PLAN_TEMPLATES[pred] || CARE_PLAN_TEMPLATES['uncertain'];
+    
+    // Stream text in typewriter format
+    streamHtmlText(reportText, textHtml);
+  }, 1800);
+}
+
+function streamHtmlText(element, html) {
+  element.innerHTML = '';
+  // Stream tags to avoid breaking layout
+  const tempDiv = document.createElement('div');
+  tempDiv.innerHTML = html;
+  const nodes = Array.from(tempDiv.childNodes);
+  
+  let nodeIndex = 0;
+  function addNextNode() {
+    if (nodeIndex >= nodes.length) return;
+    
+    const node = nodes[nodeIndex].cloneNode(true);
+    element.appendChild(node);
+    
+    // Typewriter effect on text nodes
+    if (node.nodeType === Node.TEXT_NODE) {
+      const origText = node.textContent;
+      node.textContent = '';
+      let charIndex = 0;
+      const interval = setInterval(() => {
+        if (charIndex >= origText.length) {
+          clearInterval(interval);
+          nodeIndex++;
+          addNextNode();
+        } else {
+          node.textContent += origText[charIndex];
+          charIndex++;
+        }
+      }, 3);
+    } else {
+      // Tags render instantly
+      nodeIndex++;
+      setTimeout(addNextNode, 40);
+    }
+  }
+  
+  addNextNode();
+}
+
+// ── Chat Copilot Widget Handler ──
+function toggleChatWidget(event) {
+  if (event) event.stopPropagation();
+  const container = document.getElementById('chatContainer');
+  if (container) {
+    container.classList.toggle('open');
+    if (container.classList.contains('open')) {
+      document.getElementById('chatInput').focus();
+    }
+  }
+}
+
+const CHAT_ANSWERS = {
+  feed: "For newborn babies, it is recommended to feed on demand, usually every 2 to 3 hours. Watch out for early hunger signals like rooting (turning head to find the breast), hand sucking, or lip smacking.",
+  bottle: "Ensure the bottle nipple flow is appropriate for your baby's age. Keep baby's head elevated higher than the stomach to reduce gas, and burp every 1-2 ounces.",
+  gas: "To soothe baby gas, lay baby on their back and gently bike their legs in circles. Massage their tummy clockwise or try holding them in the 'colic carry' (chest down over your forearm).",
+  burp: "Try patting the baby's back gently with a cupped hand. Key positions are upright on your shoulder, sitting on your lap while supporting their chin (not throat), or facedown across your lap.",
+  diaper: "Check diaper every 2-3 hours. Prolonged wetness can cause diaper rash. Apply diaper paste if skin looks red or irritated.",
+  sleep: "Newborns sleep 16-18 hours per day, but in short chunks. Put baby down when they show signs of drowsiness (yawning, eye rubbing, staring). Keep room cool, dark, and use white noise.",
+  fever: "In babies under 3 months, a rectal temperature of 38°C (100.4°F) or higher is considered a fever and requires immediate consultation with a pediatrician. Do not administer medication without a doctor's advice.",
+  soothe: "Try the 5 S's technique: Swaddle, Side/Stomach position in your arms, Shush (white noise), Swing (rhythmic rocking), and Suck (pacifier or clean finger)."
+};
+
+function sendChatMessage() {
+  const input = document.getElementById('chatInput');
+  const messages = document.getElementById('chatMessages');
+  if (!input || !messages || !input.value.trim()) return;
+  
+  const text = input.value.trim();
+  input.value = '';
+  
+  // Append user message
+  const userMsg = document.createElement('div');
+  userMsg.className = 'chat-msg user';
+  userMsg.innerHTML = `<p>${text}</p>`;
+  messages.appendChild(userMsg);
+  messages.scrollTop = messages.scrollHeight;
+  
+  // Show typing indicator
+  const typingInd = document.createElement('div');
+  typingInd.className = 'typing-indicator';
+  typingInd.id = 'typingIndicator';
+  typingInd.innerHTML = `
+    <span class="typing-dot"></span>
+    <span class="typing-dot"></span>
+    <span class="typing-dot"></span>
+  `;
+  messages.appendChild(typingInd);
+  messages.scrollTop = messages.scrollHeight;
+  
+  // Parse response
+  setTimeout(() => {
+    // Remove typing indicator
+    const ind = document.getElementById('typingIndicator');
+    if (ind) ind.remove();
+    
+    // Find answer
+    let answer = "I'm here to help! Could you ask a question about baby feeding, sleep, burping, gas relief, or how to soothe your crying baby?";
+    const textLower = text.toLowerCase();
+    
+    if (textLower.includes('feed') || textLower.includes('hungry') || textLower.includes('milk') || textLower.includes('breast')) {
+      answer = CHAT_ANSWERS.feed;
+    } else if (textLower.includes('bottle') || textLower.includes('formula')) {
+      answer = CHAT_ANSWERS.bottle;
+    } else if (textLower.includes('gas') || textLower.includes('colic') || textLower.includes('stomach') || textLower.includes('tummy') || textLower.includes('pain')) {
+      answer = CHAT_ANSWERS.gas;
+    } else if (textLower.includes('burp')) {
+      answer = CHAT_ANSWERS.burp;
+    } else if (textLower.includes('diaper') || textLower.includes('rash') || textLower.includes('wet')) {
+      answer = CHAT_ANSWERS.diaper;
+    } else if (textLower.includes('sleep') || textLower.includes('tired') || textLower.includes('nap') || textLower.includes('night')) {
+      answer = CHAT_ANSWERS.sleep;
+    } else if (textLower.includes('fever') || textLower.includes('temperature') || textLower.includes('hot') || textLower.includes('sick')) {
+      answer = CHAT_ANSWERS.fever;
+    } else if (textLower.includes('soothe') || textLower.includes('calm') || textLower.includes('cry') || textLower.includes('stop')) {
+      answer = CHAT_ANSWERS.soothe;
+    }
+    
+    // Append bot response
+    const botMsg = document.createElement('div');
+    botMsg.className = 'chat-msg bot';
+    messages.appendChild(botMsg);
+    
+    // Stream bot response character by character
+    let charIndex = 0;
+    const interval = setInterval(() => {
+      if (charIndex >= answer.length) {
+        clearInterval(interval);
+      } else {
+        botMsg.innerHTML += answer[charIndex];
+        charIndex++;
+        messages.scrollTop = messages.scrollHeight;
+      }
+    }, 12);
+  }, 1000);
+}
+
+function handleChatKey(event) {
+  if (event.key === 'Enter') {
+    sendChatMessage();
+  }
+}
+
 // ── Init ──────────────────────────────────────────────────────────
 (async () => {
+  initTheme();
   initScrollReveal();
+  initScrollProgress();
+  initParticles();
   setTimeout(init3DTilt, 500); // after DOM settles
   initIdleWave();
 
@@ -680,13 +1169,173 @@ function initIdleWave() {
   await loadModelInfo();
 
   // Trigger reveal for hero (above fold)
-  document.querySelectorAll('.reveal-up, .reveal-right').forEach(el => {
+  document.querySelectorAll('.reveal-up, .reveal-right, .reveal-3d-left, .reveal-3d-right, .reveal-3d-scale').forEach(el => {
     const rect = el.getBoundingClientRect();
     if (rect.top < window.innerHeight) el.classList.add('revealed');
   });
 })();
 
+function downloadCareReport() {
+  if (!currentResult) return;
+  const pred = currentResult.prediction || 'uncertain';
+  const html = CARE_PLAN_TEMPLATES[pred] || CARE_PLAN_TEMPLATES['uncertain'];
+  
+  let text = html
+    .replace(/<h5>(.*?)<\/h5>/g, '\n=== $1 ===\n')
+    .replace(/<li>\*\*(.*?)\*\*:(.*?)<\/li>/g, '* $1: $2')
+    .replace(/<li>(.*?)<\/li>/g, '* $1')
+    .replace(/<p>(.*?)<\/p>/g, '\n$1\n')
+    .replace(/<ul.*?>/g, '')
+    .replace(/<\/ul>/g, '')
+    .replace(/\*\*/g, '')
+    .trim();
+
+  const timestamp = new Date().toLocaleString();
+  const label = currentResult.label || pred.toUpperCase();
+  const confidence = currentResult.confidence || 0;
+  const severity = currentResult.severity || 'low';
+  
+  const reportHeader = `==================================================
+CRYSENSE CLINICAL CARE REPORT & ACTION PLAN
+Generated: ${timestamp}
+==================================================
+
+[PATIENT DETAILS]
+- Condition: ${label}
+- Confidence: ${confidence}%
+- Severity Level: ${severity.toUpperCase()}
+
+[DETAILED ANALYSIS & RECOMMENDATIONS]
+${text}
+
+==================================================
+DISCLAIMER: This report is generated by CrySense based on acoustic baby cry markers. It is for informational and educational support only. It is not a substitute for professional medical advice, diagnosis, or treatment. Always seek the advice of your pediatrician or other qualified health provider with any questions you may have regarding a medical condition.
+==================================================`;
+
+  const blob = new Blob([reportHeader], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `CrySense_Care_Plan_${pred}_${new Date().toISOString().slice(0,10)}.txt`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function printCareReport() {
+  if (!currentResult) return;
+  const pred = currentResult.prediction || 'uncertain';
+  const html = CARE_PLAN_TEMPLATES[pred] || CARE_PLAN_TEMPLATES['uncertain'];
+  const label = currentResult.label || pred.toUpperCase();
+  const confidence = currentResult.confidence || 0;
+  const severity = currentResult.severity || 'low';
+  const timestamp = new Date().toLocaleString();
+  
+  const printWindow = window.open('', '_blank', 'width=800,height=600');
+  printWindow.document.write(`
+    <html>
+      <head>
+        <title>CrySense Care Report - ${label}</title>
+        <style>
+          body {
+            font-family: 'DM Sans', Arial, sans-serif;
+            color: #1e293b;
+            padding: 40px;
+            line-height: 1.6;
+            background: #ffffff;
+          }
+          .header {
+            border-bottom: 2px solid #0284c7;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+          }
+          .header h1 {
+            margin: 0;
+            color: #0369a1;
+            font-size: 24px;
+          }
+          .meta {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            background: #f0f9ff;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+          }
+          h5 {
+            color: #0369a1;
+            font-size: 16px;
+            margin-top: 25px;
+            margin-bottom: 10px;
+            border-bottom: 1px solid #e2e8f0;
+            padding-bottom: 5px;
+            text-transform: uppercase;
+          }
+          ul {
+            padding-left: 20px;
+          }
+          li {
+            margin-bottom: 10px;
+          }
+          .disclaimer {
+            margin-top: 50px;
+            font-size: 11px;
+            color: #64748b;
+            border-top: 1px solid #e2e8f0;
+            padding-top: 15px;
+            text-align: justify;
+          }
+          @media print {
+            .no-print { display: none; }
+          }
+          .print-btn {
+            background: #0284c7;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-size: 14px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin-bottom: 20px;
+            font-weight: bold;
+          }
+        </style>
+      </head>
+      <body>
+        <button class="print-btn no-print" onclick="window.print()">Print Report / Save to PDF</button>
+        <div class="header">
+          <h1>🍼 CRYSENSE CLINICAL CARE REPORT</h1>
+          <p>Acoustic Analysis & Pediatric Care Plan</p>
+        </div>
+        <div class="meta">
+          <div><strong>Condition Detected:</strong> ${label}</div>
+          <div><strong>Confidence Score:</strong> ${confidence}%</div>
+          <div><strong>Severity Level:</strong> ${severity.toUpperCase()}</div>
+          <div><strong>Report Generated:</strong> ${timestamp}</div>
+        </div>
+        <div class="content">
+          ${html}
+        </div>
+        <div class="disclaimer">
+          <strong>Disclaimer:</strong> This report is generated by CrySense based on acoustic baby cry markers. It is for informational and educational support only. It is not a substitute for professional medical advice, diagnosis, or treatment. Always seek the advice of your pediatrician or other qualified health provider with any questions you may have regarding a medical condition.
+        </div>
+      </body>
+    </html>
+  `);
+  printWindow.document.close();
+}
+
 // Expose globals needed by HTML onclick
 window.switchMode = switchMode;
 window.switchLang = switchLang;
 window.toggleMic = toggleMic;
+window.toggleThemeDropdown = toggleThemeDropdown;
+window.setThemeOption = setTheme;
+window.generateCareReport = generateCareReport;
+window.downloadCareReport = downloadCareReport;
+window.printCareReport = printCareReport;
+window.toggleChatWidget = toggleChatWidget;
+window.sendChatMessage = sendChatMessage;
+window.handleChatKey = handleChatKey;

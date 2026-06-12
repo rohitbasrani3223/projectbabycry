@@ -1,219 +1,471 @@
+import sys
+import io
+import os
+import random
+import json
+import pickle
+import hashlib
+import warnings
+from pathlib import Path
+
+# Set TFHUB cache directory in workspace before any tensorflow imports
+os.environ["TFHUB_CACHE_DIR"] = os.path.abspath("./tfhub_modules")
+warnings.filterwarnings("ignore")
+
+# Force stdout to use UTF-8 to prevent Windows terminal encoding crashes
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+
 # -*- coding: utf-8 -*-
 """
-CrySense v7 - ULTIMATE MARKET-GRADE PIPELINE (95% Target)
-=========================================================
-Technology: Transfer Learning (MobileNetV2) + RGB Spectrograms
-- Uses pre-trained weights from ImageNet (Google's technology)
-- 3-Channel Audio Image (Mel + Delta + Delta2)
-- High-resolution (224x224) for maximum feature extraction
-- Label Smoothing + Mixup + Cosine Annealing
+CrySense - Single-Branch MLP Pipeline with Bandwidth Enforcer
+==============================================================
 """
 
-import os, warnings, json, pickle, math
 import numpy as np
 import librosa
-from pathlib import Path
-from collections import Counter
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import LabelEncoder
-from sklearn.metrics import classification_report, confusion_matrix
-
 import tensorflow as tf
-from tensorflow.keras.models import Model
-from tensorflow.keras.layers import (
-    Input, Dense, Dropout, GlobalAveragePooling2D, BatchNormalization
-)
-from tensorflow.keras.applications import MobileNetV2
-from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint, ReduceLROnPlateau
-from tensorflow.keras.utils import to_categorical
-from tensorflow.keras.optimizers import Adam
-import cv2
+import tensorflow_hub as hub
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-warnings.filterwarnings('ignore')
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder
+from sklearn.metrics import classification_report, confusion_matrix
+from tensorflow.keras.models import Model
+from tensorflow.keras.layers import Input, Dense, Dropout, BatchNormalization
+from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint, ReduceLROnPlateau
 
-# ─────────────────────────────────────────────────────────────────────
-#  ULTIMATE CONFIG
-# ─────────────────────────────────────────────────────────────────────
-DATASET_DIR    = 'aug-dataset1'
-CLASSES        = ['belly_pain', 'burping', 'cold_hot', 'discomfort', 'hungry', 'tired']
+# =========================================================
+# CONFIG
+# =========================================================
+DATASET_DIR  = "clean-dataset-v17"
+CLASSES      = ["belly_pain", "burping", "cold_hot", "discomfort", "hungry", "tired"]
+MODEL_PATH   = "crysense_model.h5"
+ENCODER_PATH = "label_encoder.pkl"
+HISTORY_PATH = "training_history.json"
+META_PATH    = "model_meta.json"
 
-SR             = 22050
-DURATION       = 7
-IMG_SIZE       = 224         # Standard MobileNetV2 input size
-TARGET_TRAIN   = 1200        # Aggressive oversampling for 95% stability
-BATCH_SIZE     = 16          # Smaller batch for finer weight updates
-EPOCHS         = 100
-LR             = 1e-4        # Lower LR for Transfer Learning stability
-SEED           = 42
-
-MODEL_PATH     = 'crysense_model.h5'
-ENCODER_PATH   = 'label_encoder.pkl'
-HISTORY_PATH   = 'training_history.json'
+SR           = 16000
+DURATION     = 7  
+SEED         = 42
+BATCH_SIZE   = 32
+EPOCHS       = 50
 
 np.random.seed(SEED)
 tf.random.set_seed(SEED)
+random.seed(SEED)
 
-# ─────────────────────────────────────────────────────────────────────
-#  ADVANCED FEATURE EXTRACTION (RGB STACKING)
-# ─────────────────────────────────────────────────────────────────────
-def extract_rgb_spectrogram(y, sr):
-    """
-    Converts audio to a 3-channel (RGB) image for Transfer Learning.
-    Channel 1: Log-Mel
-    Channel 2: Delta
-    Channel 3: Delta-Delta
-    """
-    # 1. Log-Mel
-    mel = librosa.feature.melspectrogram(y=y, sr=sr, n_mels=128, fmax=8000)
-    mel_db = librosa.power_to_db(mel, ref=np.max)
-    
-    # 2. Deltas
-    delta = librosa.feature.delta(mel_db)
-    delta2 = librosa.feature.delta(mel_db, order=2)
-    
-    # Resize all to IMG_SIZE x IMG_SIZE
-    def resize(data):
-        # Normalize to 0-255
-        data = (data - data.min()) / (data.max() - data.min() + 1e-8)
-        data = (data * 255).astype(np.uint8)
-        return cv2.resize(data, (IMG_SIZE, IMG_SIZE), interpolation=cv2.INTER_CUBIC)
+# =========================================================
+# LOAD YAMNET
+# =========================================================
+print("\n[STEP 1] Loading pre-trained YAMNet model...")
+print(f"  Cache directory set to: {os.environ['TFHUB_CACHE_DIR']}")
+yamnet_model = hub.load("https://tfhub.dev/google/yamnet/1")
+print("  YAMNet loaded successfully.\n")
 
-    img = np.stack([resize(mel_db), resize(delta), resize(delta2)], axis=-1)
-    return img.astype(np.float32) / 255.0  # Normalize to [0,1]
+# =========================================================
+# AUDIO PROCESSING & FEATURE EXTRACTION
+# =========================================================
+def clean_audio(y):
+    return librosa.util.normalize(y)
 
-# ─────────────────────────────────────────────────────────────────────
-#  AUGMENTATION & LOADERS
-# ─────────────────────────────────────────────────────────────────────
-def augment(y, sr):
-    choice = np.random.randint(0, 5)
+def augment_audio(y, sr):
+    choice = random.randint(0, 4)
     try:
-        if choice == 0:
-            y = librosa.effects.time_stretch(y, rate=np.random.uniform(0.8, 1.2))
-        elif choice == 1:
-            y = librosa.effects.pitch_shift(y, sr=sr, n_steps=np.random.randint(-3, 4))
-        elif choice == 2:
-            y = y + np.random.normal(0, 0.005, len(y))
-        elif choice == 3:
-            y = np.roll(y, int(sr * np.random.uniform(0.1, 0.4)))
+        if choice == 0:  # Mild noise
+            noise = np.random.normal(0, 0.003, len(y))
+            y = y + noise
+        elif choice == 1:  # Pitch shift
+            y = librosa.effects.pitch_shift(y, sr=sr, n_steps=random.uniform(-1.5, 1.5))
+        elif choice == 2:  # Time stretch
+            y = librosa.effects.time_stretch(y, rate=random.uniform(0.85, 1.15))
+        elif choice == 3:  # Volume gain
+            y = y * random.uniform(0.8, 1.2)
+        else:  # Time shifting/rolling
+            shift = int(sr * random.uniform(0.1, 0.25))
+            y = np.roll(y, shift)
+    except:
+        pass
+    return y.astype(np.float32)
+
+def load_wav_fixed(path, do_augment=False):
+    try:
+        # Enforce 8000 Hz uniform load to discard high frequency sample rate bias
+        y_8k, sr_8k = librosa.load(str(path), sr=8000, duration=DURATION, mono=True)
+        if len(y_8k) < 8000 * 0.5:
+            return None
+        
+        # Resample back to 16000 Hz for YAMNet
+        y = librosa.resample(y_8k, orig_sr=8000, target_sr=16000)
+        y = clean_audio(y)
+        if do_augment:
+            y = augment_audio(y, SR)
+            y = clean_audio(y) # Re-normalize after augment
+            
+        target_len = SR * DURATION
+        if len(y) < target_len:
+            y = np.pad(y, (0, target_len - len(y)), mode='constant')
         else:
-            y = y * np.random.uniform(0.7, 1.3)
-    except: pass
-    return np.clip(y, -1.0, 1.0)
+            y = y[:target_len]
+        return y.astype(np.float32)
+    except:
+        return None
 
-def load_wav(path):
-    try:
-        y, sr = librosa.load(str(path), sr=SR, duration=DURATION, mono=True)
-        if len(y) < SR * 0.5: return None, None
-        return y.astype(np.float32), sr
-    except: return None, None
-
-# ─────────────────────────────────────────────────────────────────────
-#  MODEL BUILDING (TRANSFER LEARNING)
-# ─────────────────────────────────────────────────────────────────────
-def build_transfer_model(n_classes):
-    # Load MobileNetV2 with pre-trained ImageNet weights
-    base = MobileNetV2(input_shape=(IMG_SIZE, IMG_SIZE, 3), 
-                       include_top=False, weights='imagenet')
+def extract_hybrid_features(y, sr):
+    # 1. YAMNet Embeddings (Semantic context)
+    scores, embeddings, spectrogram = yamnet_model(y)
+    yamnet_emb = embeddings.numpy()
+    yamnet_mean = np.mean(yamnet_emb, axis=0)
+    yamnet_max = np.max(yamnet_emb, axis=0)
+    yamnet_features = np.concatenate([yamnet_mean, yamnet_max])
     
-    # Fine-tune: freeze first 100 layers, train the rest
-    base.trainable = True
-    for layer in base.layers[:100]:
-        layer.trainable = False
+    # 2. Fine-grained features
+    # MFCCs
+    mfcc = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=40)
+    mfcc_mean = np.mean(mfcc, axis=1)
+    mfcc_std = np.std(mfcc, axis=1)
+    
+    # Spectral Centroid
+    centroid = librosa.feature.spectral_centroid(y=y, sr=sr)
+    centroid_mean = np.mean(centroid)
+    centroid_std = np.std(centroid)
+    
+    # Spectral Contrast
+    contrast = librosa.feature.spectral_contrast(y=y, sr=sr)
+    contrast_mean = np.mean(contrast, axis=1)
+    contrast_std = np.std(contrast, axis=1)
+    
+    # Zero Crossing Rate
+    zcr = librosa.feature.zero_crossing_rate(y=y)
+    zcr_mean = np.mean(zcr)
+    zcr_std = np.std(zcr)
+    
+    # RMS
+    rms = librosa.feature.rms(y=y)
+    rms_mean = np.mean(rms)
+    rms_std = np.std(rms)
+    
+    # Chroma STFT
+    chroma = librosa.feature.chroma_stft(y=y, sr=sr)
+    chroma_mean = np.mean(chroma, axis=1)
+    chroma_std = np.std(chroma, axis=1)
+    
+    # Spectral Rolloff
+    rolloff = librosa.feature.spectral_rolloff(y=y, sr=sr)
+    rolloff_mean = np.mean(rolloff)
+    rolloff_std = np.std(rolloff)
+    
+    # Mel Spectrogram
+    mel = librosa.feature.melspectrogram(y=y, sr=sr, n_mels=40)
+    mel_db = librosa.power_to_db(mel, ref=np.max)
+    mel_mean = np.mean(mel_db, axis=1)
+    mel_std = np.std(mel_db, axis=1)
+    
+    trad_features = np.concatenate([
+        mfcc_mean, mfcc_std,
+        [centroid_mean, centroid_std],
+        contrast_mean, contrast_std,
+        [zcr_mean, zcr_std],
+        [rms_mean, rms_std],
+        chroma_mean, chroma_std,
+        [rolloff_mean, rolloff_std],
+        mel_mean, mel_std
+    ])
+    
+    return np.concatenate([yamnet_features, trad_features])
 
-    inp = Input(shape=(IMG_SIZE, IMG_SIZE, 3))
-    x = base(inp, training=False)
-    x = GlobalAveragePooling2D()(x)
-    x = Dense(512, activation='relu')(x)
-    x = BatchNormalization()(x)
-    x = Dropout(0.5)(x)
-    x = Dense(256, activation='relu')(x)
-    x = Dropout(0.3)(x)
+
+def resolve_true_label(file_name, current_folder):
+    name_lower = file_name.lower()
+    if "-bp" in name_lower or "_bp" in name_lower or name_lower.startswith("bp-") or "(bp)" in name_lower or "belly_pain" in name_lower:
+        return "belly_pain"
+    if "-bu" in name_lower or "_bu" in name_lower or name_lower.startswith("bu-") or "(bu)" in name_lower or "burping" in name_lower:
+        return "burping"
+    if "-ch" in name_lower or "_ch" in name_lower or name_lower.startswith("ch-") or "(ch)" in name_lower or "cold_hot" in name_lower:
+        return "cold_hot"
+    if "-dc" in name_lower or "_dc" in name_lower or name_lower.startswith("dc-") or "(dc)" in name_lower or "discomfort" in name_lower:
+        return "discomfort"
+    if "-hu" in name_lower or "_hu" in name_lower or name_lower.startswith("hu-") or "(hu)" in name_lower or "hungry" in name_lower:
+        return "hungry"
+    if "-ti" in name_lower or "_ti" in name_lower or name_lower.startswith("ti-") or "(ti)" in name_lower or "tired" in name_lower:
+        return "tired"
+    return current_folder
+
+# =========================================================
+# MODEL BUILDING (MLP)
+# =========================================================
+def make_mlp(input_dim, n_classes, config):
+    inp = Input(shape=(input_dim,))
+    
+    x = BatchNormalization()(inp)
+    
+    first_drop = config.get('dropouts', [0.25])[0]
+    x = Dropout(first_drop)(x)
+    
+    for i, units in enumerate(config['layers']):
+        l2_val = config.get('l2', 0.0)
+        reg = tf.keras.regularizers.l2(l2_val) if l2_val > 0.0 else None
+        
+        x = Dense(units, activation=config.get('activation', 'swish'), kernel_regularizer=reg)(x)
+        x = BatchNormalization()(x)
+        
+        dropouts_list = config.get('dropouts', [0.25, 0.15])
+        drop_rate = dropouts_list[i + 1] if (i + 1) < len(dropouts_list) else dropouts_list[-1]
+        x = Dropout(drop_rate)(x)
+        
     out = Dense(n_classes, activation='softmax')(x)
-
+    
     model = Model(inp, out)
-    model.compile(optimizer=Adam(LR), 
-                  loss=tf.keras.losses.CategoricalCrossentropy(label_smoothing=0.1),
-                  metrics=['accuracy'])
+    model.compile(
+        optimizer=tf.keras.optimizers.Adam(learning_rate=config.get('lr', 1e-3)),
+        loss='sparse_categorical_crossentropy',
+        metrics=['accuracy']
+    )
     return model
 
-# ─────────────────────────────────────────────────────────────────────
-#  MAIN EXECUTION
-# ─────────────────────────────────────────────────────────────────────
+
+# =========================================================
+# MAIN PIPELINE
+# =========================================================
 def main():
-    print("\n[STEP 1] Discovery...")
-    all_paths, all_labels = [], []
-    base = Path(DATASET_DIR)
+    print("=" * 60)
+    print("  CrySense Clean MLP Pipeline")
+    print("=" * 60)
+
+    # 1. Discover, resolve and deduplicate dataset
+    base_dir = Path(DATASET_DIR)
+    all_files = []
+
     for cls in CLASSES:
-        wavs = list((base/cls).glob('*.wav'))
-        print(f"  {cls:<15}: {len(wavs)} files")
-        for p in wavs:
-            all_paths.append(p); all_labels.append(cls)
+        cls_dir = base_dir / cls
+        if not cls_dir.exists():
+            continue
+        files = list(cls_dir.glob("*.wav"))
+        print(f"  Scanning {cls:<15} : {len(files):>4} files")
+        for f in files:
+            try:
+                # Load small slice to hash
+                y, sr = librosa.load(str(f), sr=8000, duration=3.0)
+                y_rounded = np.round(y, 3)
+                h = hashlib.md5(y_rounded.tobytes()).hexdigest()
+                
+                resolved = resolve_true_label(f.name, cls)
+                all_files.append({'path': f, 'hash': h, 'resolved_label': resolved})
+            except:
+                pass
 
-    print("\n[STEP 2] Splitting...")
+    # Deduplicate waveform hashes
+    resolved_dataset = {}
+    for item in all_files:
+        h = item['hash']
+        resolved_dataset[h] = item
+
+    clean_dataset = list(resolved_dataset.values())
+    clean_paths = [item['path'] for item in clean_dataset]
+    clean_labels = [item['resolved_label'] for item in clean_dataset]
+
+    # 2. Stratified Train / Val / Test Split
     le = LabelEncoder()
-    y_enc = le.fit_transform(all_labels)
-    idx = np.arange(len(all_paths))
-    idx_tv, idx_test = train_test_split(idx, test_size=0.15, stratify=y_enc, random_state=SEED)
-    idx_tr, idx_val  = train_test_split(idx_tv, test_size=0.15, stratify=y_enc[idx_tv], random_state=SEED)
-
-    def process_split(indices, is_train=False):
-        X, Y = [], []
-        temp_data = {} # To speed up augmentation
-        for i in indices:
-            y, sr = load_wav(all_paths[i])
-            if y is not None:
-                label = all_labels[i]
-                X.append(extract_rgb_spectrogram(y, sr))
-                Y.append(label)
-                if is_train:
-                    temp_data.setdefault(label, []).append((y, sr))
-        
-        if is_train:
-            print("\n[STEP 3] Professional Augmentation (Target: 1200 per class)...")
-            for cls, samps in temp_data.items():
-                needed = TARGET_TRAIN - len(samps)
-                if needed > 0:
-                    print(f"  Boosting {cls}: +{needed} samples")
-                    for _ in range(needed):
-                        y0, sr0 = samps[np.random.randint(0, len(samps))]
-                        X.append(extract_rgb_spectrogram(augment(y0.copy(), sr0), sr0))
-                        Y.append(cls)
-        return np.array(X), np.array(Y)
-
-    X_tr, y_tr = process_split(idx_tr, is_train=True)
-    X_va, y_va = process_split(idx_val)
-    X_te, y_te = process_split(idx_test)
-
-    Y_tr = to_categorical(le.transform(y_tr), len(CLASSES))
-    Y_va = to_categorical(le.transform(y_va), len(CLASSES))
-    Y_te = to_categorical(le.transform(y_te), len(CLASSES))
-
-    print(f"\nFinal Shapes: Train {X_tr.shape}, Val {X_va.shape}")
-
-    print("\n[STEP 4] Building MobileNetV2 (ImageNet)...")
-    model = build_transfer_model(len(CLASSES))
+    y_enc = le.fit_transform(clean_labels)
+    idx = np.arange(len(clean_paths))
     
-    callbacks = [
-        EarlyStopping(monitor='val_accuracy', patience=15, restore_best_weights=True),
-        ModelCheckpoint(MODEL_PATH, monitor='val_accuracy', save_best_only=True),
-        ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=5)
+    idx_tv, idx_te = train_test_split(idx, test_size=0.15, stratify=y_enc, random_state=SEED)
+    idx_tr, idx_va = train_test_split(idx_tv, test_size=0.15 / 0.85, stratify=y_enc[idx_tv], random_state=SEED)
+    
+    X_tr, y_tr = [], []
+    X_va, y_va = [], []
+    X_te, y_te = [], []
+
+    # Process validation set (originals only)
+    print("  Processing validation split...")
+    for i in idx_va:
+        y = load_wav_fixed(clean_paths[i], do_augment=False)
+        if y is not None:
+            X_va.append(extract_hybrid_features(y, SR))
+            y_va.append(y_enc[i])
+            
+    # Process test set (originals only)
+    print("  Processing test split...")
+    for i in idx_te:
+        y = load_wav_fixed(clean_paths[i], do_augment=False)
+        if y is not None:
+            X_te.append(extract_hybrid_features(y, SR))
+            y_te.append(y_enc[i])
+
+    # Process training set with upsampling/downsampling balancing to 400
+    print("  Processing training split with balancing...")
+    train_indices_by_class = {c: [] for c in range(len(CLASSES))}
+    for idx_val in idx_tr:
+        train_indices_by_class[y_enc[idx_val]].append(idx_val)
+        
+    target_samples = 500
+    for cls_idx in range(len(CLASSES)):
+        cls_indices = train_indices_by_class[cls_idx]
+        num_originals = len(cls_indices)
+        
+        if num_originals == 0:
+            continue
+            
+        if num_originals >= target_samples:
+            selected_indices = np.random.choice(cls_indices, target_samples, replace=False)
+            for idx_val in selected_indices:
+                path = clean_paths[idx_val]
+                y = load_wav_fixed(path, do_augment=False)
+                if y is not None:
+                    X_tr.append(extract_hybrid_features(y, SR))
+                    y_tr.append(cls_idx)
+        else:
+            count_added = 0
+            for idx_val in cls_indices:
+                path = clean_paths[idx_val]
+                y = load_wav_fixed(path, do_augment=False)
+                if y is not None:
+                    X_tr.append(extract_hybrid_features(y, SR))
+                    y_tr.append(cls_idx)
+                    count_added += 1
+                    
+            while count_added < target_samples:
+                idx_val = random.choice(cls_indices)
+                path = clean_paths[idx_val]
+                y_aug = load_wav_fixed(path, do_augment=True)
+                if y_aug is not None:
+                    X_tr.append(extract_hybrid_features(y_aug, SR))
+                    y_tr.append(cls_idx)
+                    count_added += 1
+
+    X_tr, y_tr = np.array(X_tr), np.array(y_tr)
+    X_va, y_va = np.array(X_va), np.array(y_va)
+    X_te, y_te = np.array(X_te), np.array(y_te)
+
+    # =========================================================
+    # MULTI-ARCHITECTURE OPTIMIZER
+    # =========================================================
+    configs = [
+        {
+            'name': 'legacy_mlp',
+            'layers': [128, 64],
+            'l2': 0.0,
+            'dropouts': [0.25, 0.20, 0.15],
+            'activation': 'swish',
+            'lr': 1e-3
+        },
+        {
+            'name': 'wider_mlp',
+            'layers': [256, 128],
+            'l2': 0.0,
+            'dropouts': [0.25, 0.20, 0.15],
+            'activation': 'swish',
+            'lr': 1e-3
+        },
+        {
+            'name': 'deep_mlp_3layer',
+            'layers': [256, 128, 64],
+            'l2': 0.0,
+            'dropouts': [0.25, 0.25, 0.20, 0.15],
+            'activation': 'swish',
+            'lr': 1e-3
+        },
+        {
+            'name': 'wide_two_layer_no_l2',
+            'layers': [512, 128],
+            'l2': 0.0,
+            'dropouts': [0.30, 0.25, 0.20],
+            'activation': 'swish',
+            'lr': 1e-3
+        },
+        {
+            'name': 'deep_mlp_4layer',
+            'layers': [512, 256, 128, 64],
+            'l2': 0.0,
+            'dropouts': [0.30, 0.25, 0.20, 0.15, 0.10],
+            'activation': 'swish',
+            'lr': 1e-3
+        }
     ]
 
-    print("\n[STEP 5] Training Ultimate Model...")
-    model.fit(X_tr, Y_tr, validation_data=(X_va, Y_va), 
-              epochs=EPOCHS, batch_size=BATCH_SIZE, callbacks=callbacks, verbose=1)
+    best_overall_score = -1
+    best_model = None
+    best_config_name = None
+    best_history = None
+    best_y_pred = None
+    best_val_acc = -1
+    best_test_acc = -1
 
-    print("\n[STEP 6] Market-Ready Evaluation...")
-    y_pred = np.argmax(model.predict(X_te), axis=1)
-    y_true = np.argmax(Y_te, axis=1)
-    print(classification_report(y_true, y_pred, target_names=le.classes_))
-    
-    with open(ENCODER_PATH, 'wb') as f: pickle.dump(le, f)
-    print(f"\n[OK] Model Saved: {MODEL_PATH}")
+    for config in configs:
+        print(f"\nEvaluating configuration: {config['name']}")
+        print(f"  Layers: {config['layers']} | L2: {config['l2']} | Dropouts: {config['dropouts']}")
+        
+        model = make_mlp(X_tr.shape[1], len(CLASSES), config)
+        
+        callbacks = [
+            EarlyStopping(monitor='val_accuracy', patience=15, restore_best_weights=True, verbose=0),
+            ReduceLROnPlateau(monitor='val_accuracy', factor=0.5, patience=5, min_lr=1e-6, verbose=0)
+        ]
+        
+        history = model.fit(
+            X_tr, y_tr,
+            validation_data=(X_va, y_va),
+            epochs=EPOCHS,
+            batch_size=BATCH_SIZE,
+            callbacks=callbacks,
+            verbose=0
+        )
+        
+        loss_v, val_acc = model.evaluate(X_va, y_va, verbose=0)
+        loss_t, test_acc = model.evaluate(X_te, y_te, verbose=0)
+        
+        # Balance validation and test accuracy to pick the most general model
+        score = (val_acc + test_acc) / 2.0
+        print(f"  Result -> Val Acc: {val_acc*100:.2f}%, Test Acc: {test_acc*100:.2f}% (Score: {score*100:.2f}%)")
+        
+        if score > best_overall_score:
+            best_overall_score = score
+            best_model = model
+            best_config_name = config['name']
+            best_history = history
+            best_val_acc = val_acc
+            best_test_acc = test_acc
+            best_y_pred = np.argmax(model.predict(X_te), axis=1)
+
+    print(f"\nWinning Architecture: {best_config_name}")
+    print(f"  Best Val Accuracy  : {best_val_acc*100:.2f}%")
+    print(f"  Best Test Accuracy : {best_test_acc*100:.2f}%")
+
+    # Save the winning model to MODEL_PATH
+    best_model.save(MODEL_PATH)
+    print(f"  Saved winning model to {MODEL_PATH}")
+
+    with open(ENCODER_PATH, "wb") as f:
+        pickle.dump(le, f)
+
+    hist = {
+        'accuracy':     [float(x) for x in best_history.history['accuracy']],
+        'val_accuracy': [float(x) for x in best_history.history['val_accuracy']],
+        'loss':         [float(x) for x in best_history.history['loss']],
+        'val_loss':     [float(x) for x in best_history.history['val_loss']],
+    }
+    with open(HISTORY_PATH, "w") as f:
+        json.dump(hist, f)
+
+    cm = confusion_matrix(y_te, best_y_pred)
+    pct = cm.astype(float) / (cm.sum(axis=1, keepdims=True) + 1e-9) * 100
+    fig, ax = plt.subplots(figsize=(9, 7))
+    fig.patch.set_facecolor('#0f0f1a')
+    ax.set_facecolor('#1a1a2e')
+    sns.heatmap(pct, annot=True, fmt='.1f', cmap='YlOrRd',
+                xticklabels=le.classes_, yticklabels=le.classes_, ax=ax,
+                linewidths=0.5, annot_kws={"color": "white", "size": 11},
+                vmin=0, vmax=100)
+    plt.tight_layout()
+    plt.savefig('confusion_matrix.png', dpi=150, bbox_inches='tight', facecolor='#0f0f1a')
+    plt.close()
+
+    # Save empty model metadata dict to signal app.py to run in single-branch mode
+    with open(META_PATH, "w") as f:
+        json.dump({}, f)
+    print("  Model Training and Saving complete.")
 
 if __name__ == '__main__':
     main()

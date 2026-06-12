@@ -1,26 +1,27 @@
 /* =====================================================
-   CrySense — Dark Abyss Theme
-   Deep Navy × Cyan × Emerald
+   CrySense — Neon Electric Blue Theme (Fixed)
+   White × Neon Royal Blue × Neon Cyan
    ===================================================== */
 
 :root {
-  --bg-deep: #03070f;
-  --bg-dark: #060d1a;
-  --bg-card: rgba(14, 165, 233, 0.04);
-  --bg-card-h: rgba(14, 165, 233, 0.08);
-  --border: rgba(6, 182, 212, 0.10);
-  --border-h: rgba(6, 182, 212, 0.28);
+  /* Default Theme Variables (Cyberpunk Neon) */
+  --bg-deep: #020612;
+  --bg-dark: #070e24;
+  --bg-card: rgba(0, 102, 255, 0.03);
+  --bg-card-h: rgba(0, 102, 255, 0.08);
+  --border: rgba(0, 240, 255, 0.12);
+  --border-h: rgba(0, 240, 255, 0.35);
 
-  --accent: #0891b2;
-  --accent-lt: #22d3ee;
-  --accent-glow: rgba(6, 182, 212, 0.35);
+  --accent: #0052ff;
+  --accent-lt: #00f0ff;
+  --accent-glow: rgba(0, 240, 255, 0.40);
 
-  --accent2: #059669;
-  --accent2-lt: #34d399;
+  --accent2: #2563eb;
+  --accent2-lt: #3b82f6;
 
-  --text: #f0f9ff;
-  --text-muted: #64b5c9;
-  --text-dim: #1e4a5c;
+  --text: #ffffff;
+  --text-muted: #93c5fd;
+  --text-dim: #1e3a8a;
 
   --font-head: 'Syne', sans-serif;
   --font-body: 'DM Sans', sans-serif;
@@ -30,8 +31,194 @@
   --r-lg: 22px;
   --r-xl: 32px;
 
-  --shadow: 0 12px 60px rgba(0, 0, 0, 0.7);
-  --glow: 0 0 50px rgba(6, 182, 212, 0.18);
+  --shadow: 0 12px 60px rgba(0, 0, 0, 0.8), 0 0 30px rgba(0, 82, 255, 0.12);
+  --glow: 0 0 50px rgba(0, 240, 255, 0.22);
+  
+  /* Theme mappings */
+  --gradient-primary: linear-gradient(135deg, #0891b2 0%, #059669 100%);
+  --gradient-text: linear-gradient(135deg, #22d3ee 0%, #34d399 50%, #38bdf8 100%);
+  --grid-color: rgba(0, 240, 255, 0.025);
+  --orb-1-color: rgba(0, 240, 255, 0.28);
+  --orb-2-color: rgba(0, 102, 255, 0.22);
+  --orb-3-color: rgba(30, 64, 175, 0.22);
+  --orb-4-color: rgba(59, 130, 246, 0.15);
+  --logo-shadow: rgba(6, 182, 212, 0.4);
+  --btn-shadow: rgba(6, 182, 212, 0.35);
+  --btn-shadow-h: rgba(6, 182, 212, 0.50);
+  --tab-active-bg: linear-gradient(135deg, rgba(8, 145, 178, 0.2), rgba(5, 150, 105, 0.15));
+  --tab-active-shadow: rgba(6, 182, 212, 0.12);
+  --navbar-bg: rgba(3, 7, 15, 0.75);
+  --navbar-scrolled: rgba(3, 7, 15, 0.92);
+}
+
+/* ── Cyberpunk Neon (Identical to root default) ── */
+body[data-theme="cyberpunk"] {
+  --bg-deep: #020612;
+  --bg-dark: #070e24;
+  --bg-card: rgba(0, 102, 255, 0.03);
+  --bg-card-h: rgba(0, 102, 255, 0.08);
+  --border: rgba(0, 240, 255, 0.12);
+  --border-h: rgba(0, 240, 255, 0.35);
+  --accent: #0052ff;
+  --accent-lt: #00f0ff;
+  --accent-glow: rgba(0, 240, 255, 0.40);
+  --accent2: #2563eb;
+  --accent2-lt: #3b82f6;
+  --text: #ffffff;
+  --text-muted: #93c5fd;
+  --text-dim: #1e3a8a;
+  --shadow: 0 12px 60px rgba(0, 0, 0, 0.8), 0 0 30px rgba(0, 82, 255, 0.12);
+  --glow: 0 0 50px rgba(0, 240, 255, 0.22);
+  --gradient-primary: linear-gradient(135deg, #0891b2 0%, #059669 100%);
+  --gradient-text: linear-gradient(135deg, #22d3ee 0%, #34d399 50%, #38bdf8 100%);
+  --grid-color: rgba(0, 240, 255, 0.025);
+  --orb-1-color: rgba(0, 240, 255, 0.28);
+  --orb-2-color: rgba(0, 102, 255, 0.22);
+  --orb-3-color: rgba(30, 64, 175, 0.22);
+  --orb-4-color: rgba(59, 130, 246, 0.15);
+  --logo-shadow: rgba(6, 182, 212, 0.4);
+  --btn-shadow: rgba(6, 182, 212, 0.35);
+  --btn-shadow-h: rgba(6, 182, 212, 0.50);
+  --tab-active-bg: linear-gradient(135deg, rgba(8, 145, 178, 0.2), rgba(5, 150, 105, 0.15));
+  --tab-active-shadow: rgba(6, 182, 212, 0.12);
+  --navbar-bg: rgba(3, 7, 15, 0.75);
+  --navbar-scrolled: rgba(3, 7, 15, 0.92);
+}
+
+/* ── Sunset Cozy Theme ── */
+body[data-theme="sunset"] {
+  --bg-deep: #0f050b;
+  --bg-dark: #1f0b18;
+  --bg-card: rgba(244, 63, 94, 0.03);
+  --bg-card-h: rgba(244, 63, 94, 0.08);
+  --border: rgba(251, 146, 60, 0.15);
+  --border-h: rgba(251, 146, 60, 0.40);
+  --accent: #e11d48;
+  --accent-lt: #fda4af;
+  --accent-glow: rgba(244, 63, 94, 0.35);
+  --accent2: #ea580c;
+  --accent2-lt: #fb923c;
+  --text: #fff5f7;
+  --text-muted: #fecdd3;
+  --text-dim: #9f1239;
+  --shadow: 0 12px 60px rgba(15, 5, 11, 0.9), 0 0 30px rgba(244, 63, 94, 0.15);
+  --glow: 0 0 50px rgba(251, 146, 60, 0.20);
+  --gradient-primary: linear-gradient(135deg, #e11d48 0%, #ea580c 100%);
+  --gradient-text: linear-gradient(135deg, #fda4af 0%, #f43f5e 50%, #fb923c 100%);
+  --grid-color: rgba(251, 146, 60, 0.025);
+  --orb-1-color: rgba(244, 63, 94, 0.25);
+  --orb-2-color: rgba(251, 146, 60, 0.20);
+  --orb-3-color: rgba(236, 72, 153, 0.18);
+  --orb-4-color: rgba(244, 63, 94, 0.12);
+  --logo-shadow: rgba(244, 63, 94, 0.4);
+  --btn-shadow: rgba(244, 63, 94, 0.35);
+  --btn-shadow-h: rgba(244, 63, 94, 0.50);
+  --tab-active-bg: linear-gradient(135deg, rgba(225, 29, 72, 0.2), rgba(234, 88, 12, 0.15));
+  --tab-active-shadow: rgba(244, 63, 94, 0.12);
+  --navbar-bg: rgba(15, 5, 11, 0.75);
+  --navbar-scrolled: rgba(15, 5, 11, 0.92);
+}
+
+/* ── Midnight Lavender Theme ── */
+body[data-theme="lavender"] {
+  --bg-deep: #06020f;
+  --bg-dark: #110729;
+  --bg-card: rgba(139, 92, 246, 0.04);
+  --bg-card-h: rgba(139, 92, 246, 0.09);
+  --border: rgba(167, 139, 250, 0.15);
+  --border-h: rgba(167, 139, 250, 0.40);
+  --accent: #7c3aed;
+  --accent-lt: #c4b5fd;
+  --accent-glow: rgba(124, 58, 237, 0.35);
+  --accent2: #4f46e5;
+  --accent2-lt: #818cf8;
+  --text: #f5f3ff;
+  --text-muted: #ddd6fe;
+  --text-dim: #5b21b6;
+  --shadow: 0 12px 60px rgba(6, 2, 15, 0.9), 0 0 30px rgba(124, 58, 237, 0.15);
+  --glow: 0 0 50px rgba(167, 139, 250, 0.20);
+  --gradient-primary: linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%);
+  --gradient-text: linear-gradient(135deg, #c4b5fd 0%, #8b5cf6 50%, #a78bfa 100%);
+  --grid-color: rgba(167, 139, 250, 0.025);
+  --orb-1-color: rgba(139, 92, 246, 0.25);
+  --orb-2-color: rgba(99, 102, 241, 0.20);
+  --orb-3-color: rgba(167, 139, 250, 0.18);
+  --orb-4-color: rgba(124, 58, 237, 0.12);
+  --logo-shadow: rgba(139, 92, 246, 0.4);
+  --btn-shadow: rgba(139, 92, 246, 0.35);
+  --btn-shadow-h: rgba(139, 92, 246, 0.50);
+  --tab-active-bg: linear-gradient(135deg, rgba(124, 58, 237, 0.2), rgba(79, 70, 229, 0.15));
+  --tab-active-shadow: rgba(139, 92, 246, 0.12);
+  --navbar-bg: rgba(6, 2, 15, 0.75);
+  --navbar-scrolled: rgba(6, 2, 15, 0.92);
+}
+
+/* ── Forest Moss Theme ── */
+body[data-theme="forest"] {
+  --bg-deep: #020a06;
+  --bg-dark: #071a10;
+  --bg-card: rgba(16, 185, 129, 0.03);
+  --bg-card-h: rgba(16, 185, 129, 0.08);
+  --border: rgba(52, 211, 153, 0.15);
+  --border-h: rgba(52, 211, 153, 0.40);
+  --accent: #059669;
+  --accent-lt: #a7f3d0;
+  --accent-glow: rgba(16, 185, 129, 0.35);
+  --accent2: #0891b2;
+  --accent2-lt: #22d3ee;
+  --text: #ecfdf5;
+  --text-muted: #d1fae5;
+  --text-dim: #065f46;
+  --shadow: 0 12px 60px rgba(2, 10, 6, 0.9), 0 0 30px rgba(16, 185, 129, 0.15);
+  --glow: 0 0 50px rgba(52, 211, 153, 0.20);
+  --gradient-primary: linear-gradient(135deg, #059669 0%, #0891b2 100%);
+  --gradient-text: linear-gradient(135deg, #a7f3d0 0%, #10b981 50%, #34d399 100%);
+  --grid-color: rgba(52, 211, 153, 0.025);
+  --orb-1-color: rgba(16, 185, 129, 0.25);
+  --orb-2-color: rgba(6, 182, 212, 0.20);
+  --orb-3-color: rgba(4, 120, 87, 0.18);
+  --orb-4-color: rgba(16, 185, 129, 0.12);
+  --logo-shadow: rgba(16, 185, 129, 0.4);
+  --btn-shadow: rgba(16, 185, 129, 0.35);
+  --btn-shadow-h: rgba(16, 185, 129, 0.50);
+  --tab-active-bg: linear-gradient(135deg, rgba(5, 150, 69, 0.2), rgba(8, 145, 178, 0.15));
+  --tab-active-shadow: rgba(16, 185, 129, 0.12);
+  --navbar-bg: rgba(2, 10, 6, 0.75);
+  --navbar-scrolled: rgba(2, 10, 6, 0.92);
+}
+
+/* ── Sakura Light Theme (Modern Light Mode) ── */
+body[data-theme="pastel-light"] {
+  --bg-deep: #FAF8FB;
+  --bg-dark: #F3EFF6;
+  --bg-card: rgba(255, 255, 255, 0.65);
+  --bg-card-h: rgba(255, 255, 255, 0.85);
+  --border: rgba(139, 92, 246, 0.18);
+  --border-h: rgba(139, 92, 246, 0.40);
+  --accent: #8b5cf6;
+  --accent-lt: #6d28d9;
+  --accent-glow: rgba(139, 92, 246, 0.18);
+  --accent2: #ec4899;
+  --accent2-lt: #db2777;
+  --text: #2e1065;
+  --text-muted: #5b21b6;
+  --text-dim: #c084fc;
+  --shadow: 0 12px 60px rgba(139, 92, 246, 0.08), 0 0 20px rgba(139, 92, 246, 0.05);
+  --glow: 0 0 30px rgba(139, 92, 246, 0.12);
+  --gradient-primary: linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%);
+  --gradient-text: linear-gradient(135deg, #6d28d9 0%, #db2777 50%, #7c3aed 100%);
+  --grid-color: rgba(139, 92, 246, 0.04);
+  --orb-1-color: rgba(167, 139, 250, 0.18);
+  --orb-2-color: rgba(244, 143, 177, 0.15);
+  --orb-3-color: rgba(129, 140, 248, 0.15);
+  --orb-4-color: rgba(167, 139, 250, 0.08);
+  --logo-shadow: rgba(139, 92, 246, 0.25);
+  --btn-shadow: rgba(139, 92, 246, 0.20);
+  --btn-shadow-h: rgba(139, 92, 246, 0.35);
+  --tab-active-bg: linear-gradient(135deg, rgba(139, 92, 246, 0.18), rgba(236, 72, 153, 0.12));
+  --tab-active-shadow: rgba(139, 92, 246, 0.08);
+  --navbar-bg: rgba(250, 248, 253, 0.85);
+  --navbar-scrolled: rgba(250, 248, 253, 0.95);
 }
 
 *,
@@ -71,8 +258,8 @@ body::before {
   position: fixed;
   inset: 0;
   background-image:
-    linear-gradient(rgba(6, 182, 212, 0.025) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(6, 182, 212, 0.025) 1px, transparent 1px);
+    linear-gradient(var(--grid-color) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
   background-size: 72px 72px;
   pointer-events: none;
   z-index: 0;
@@ -97,7 +284,7 @@ body::before {
 .orb-1 {
   width: 700px;
   height: 700px;
-  background: radial-gradient(circle, rgba(8, 145, 178, 0.55), transparent 70%);
+  background: radial-gradient(circle, var(--orb-1-color), transparent 70%);
   top: -300px;
   left: -200px;
   animation-duration: 22s;
@@ -106,7 +293,7 @@ body::before {
 .orb-2 {
   width: 500px;
   height: 500px;
-  background: radial-gradient(circle, rgba(5, 150, 105, 0.40), transparent 70%);
+  background: radial-gradient(circle, var(--orb-2-color), transparent 70%);
   top: 35%;
   right: -180px;
   animation-duration: 30s;
@@ -116,7 +303,7 @@ body::before {
 .orb-3 {
   width: 450px;
   height: 450px;
-  background: radial-gradient(circle, rgba(30, 64, 175, 0.35), transparent 70%);
+  background: radial-gradient(circle, var(--orb-3-color), transparent 70%);
   bottom: 0;
   left: 25%;
   animation-duration: 35s;
@@ -126,7 +313,7 @@ body::before {
 .orb-4 {
   width: 300px;
   height: 300px;
-  background: radial-gradient(circle, rgba(124, 58, 237, 0.20), transparent 70%);
+  background: radial-gradient(circle, var(--orb-4-color), transparent 70%);
   top: 60%;
   left: 10%;
   animation-duration: 28s;
@@ -183,8 +370,8 @@ body::before {
   height: 1px;
   background: linear-gradient(90deg,
       transparent 0%,
-      rgba(34, 211, 238, 0.5) 40%,
-      rgba(52, 211, 153, 0.5) 60%,
+      rgba(0, 240, 255, 0.5) 30%,
+      rgba(0, 102, 255, 0.6) 70%,
       transparent 100%);
   pointer-events: none;
 }
@@ -1858,6 +2045,570 @@ body::before {
 
 .hidden {
   display: none !important;
+}
+
+/* ── Theme Selector Dropdown ── */
+.theme-selector-wrap {
+  position: relative;
+  margin-right: 12px;
+}
+
+.theme-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  padding: 6px 14px;
+  border-radius: 50px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: var(--font-body);
+  transition: all 0.25s;
+}
+
+.theme-btn:hover {
+  border-color: var(--border-h);
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.05);
+}
+
+.theme-arrow {
+  font-size: 0.65rem;
+  opacity: 0.7;
+  transition: transform 0.25s;
+}
+
+.theme-selector-wrap:hover .theme-arrow {
+  transform: translateY(1px);
+}
+
+.theme-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  background: var(--navbar-scrolled);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 8px;
+  min-width: 190px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(20px);
+  z-index: 110;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-8px) scale(0.95);
+  transition: opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1), transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.25s;
+}
+
+.theme-dropdown.open {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0) scale(1);
+}
+
+.theme-opt {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 12px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  font-weight: 500;
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: left;
+  font-family: var(--font-body);
+  transition: all 0.2s;
+}
+
+.theme-opt:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+}
+
+.theme-opt.active {
+  background: rgba(255, 255, 255, 0.09);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.theme-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 0 6px rgba(255, 255, 255, 0.1);
+}
+
+/* ── Spectrogram & Plot Section ── */
+.spectrogram-section {
+  margin: 24px 0;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  position: relative;
+}
+
+.spectrogram-section h4 {
+  font-family: var(--font-head);
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+
+.spec-desc {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  margin-bottom: 16px;
+}
+
+.spec-plot-container {
+  width: 100%;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: #090d16;
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 150px;
+  box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.5);
+}
+
+.spec-plot-img {
+  width: 100%;
+  height: auto;
+  display: block;
+  object-fit: contain;
+  transition: transform 0.3s;
+}
+
+.spec-plot-img:hover {
+  transform: scale(1.015);
+}
+
+/* ── Scroll Progress Bar ── */
+.scroll-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--accent-lt), var(--accent2-lt));
+  z-index: 1000;
+  width: 0%;
+  box-shadow: 0 0 10px var(--accent-glow);
+  transition: width 0.1s ease-out;
+}
+
+/* ── Interactive Particle Canvas ── */
+.particle-canvas {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* ── 3D Scroll Reveal ── */
+.reveal-3d-left {
+  opacity: 0;
+  transform: perspective(1000px) rotateY(18deg) translateX(-60px) scale(0.95);
+  transition: opacity 0.8s cubic-bezier(0.25, 0.8, 0.25, 1), transform 0.8s cubic-bezier(0.25, 0.8, 0.25, 1);
+  transition-delay: var(--delay, 0s);
+}
+
+.reveal-3d-right {
+  opacity: 0;
+  transform: perspective(1000px) rotateY(-18deg) translateX(60px) scale(0.95);
+  transition: opacity 0.8s cubic-bezier(0.25, 0.8, 0.25, 1), transform 0.8s cubic-bezier(0.25, 0.8, 0.25, 1);
+  transition-delay: var(--delay, 0s);
+}
+
+.reveal-3d-scale {
+  opacity: 0;
+  transform: perspective(1000px) rotateX(12deg) translateY(40px) scale(0.92);
+  transition: opacity 0.8s cubic-bezier(0.25, 0.8, 0.25, 1), transform 0.8s cubic-bezier(0.25, 0.8, 0.25, 1);
+  transition-delay: var(--delay, 0s);
+}
+
+.reveal-3d-left.revealed,
+.reveal-3d-right.revealed,
+.reveal-3d-scale.revealed {
+  opacity: 1;
+  transform: perspective(1000px) rotateY(0) rotateX(0) translate(0) scale(1);
+}
+
+/* ── Pediatric Care Assistant ── */
+.care-report-section {
+  margin: 24px 0;
+  padding: 24px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  position: relative;
+  overflow: hidden;
+  box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.2);
+}
+
+.care-report-section::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 4px;
+  height: 100%;
+  background: var(--gradient-primary);
+}
+
+.care-report-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.care-report-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--accent-glow);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+  border: 1px solid var(--border-h);
+  box-shadow: 0 0 15px var(--accent-glow);
+  animation: floatHero 3s ease-in-out infinite alternate;
+}
+
+.care-report-header h4 {
+  font-family: var(--font-head);
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.2;
+}
+
+.care-report-subtitle {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.care-report-generator {
+  text-align: center;
+  padding: 12px 0;
+}
+
+.care-report-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 24px 0;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.88rem;
+}
+
+/* Glowing AI Spinner */
+.glow-spinner {
+  width: 38px;
+  height: 38px;
+  border: 3px solid rgba(255, 255, 255, 0.05);
+  border-radius: 50%;
+  border-top-color: var(--accent-lt);
+  border-right-color: var(--accent2-lt);
+  animation: spin 0.8s linear infinite;
+  box-shadow: 0 0 10px var(--accent-glow);
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.care-report-content {
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 8px;
+  padding: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.03);
+  max-height: 380px;
+  overflow-y: auto;
+  font-size: 0.9rem;
+  line-height: 1.7;
+  color: var(--text-muted);
+  text-align: left;
+}
+
+/* Care plan text styling */
+.care-report-text h5 {
+  font-family: var(--font-head);
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-top: 14px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding-bottom: 4px;
+}
+
+.care-report-text h5:first-of-type {
+  margin-top: 0;
+}
+
+.care-report-text p {
+  margin-bottom: 12px;
+}
+
+.care-report-text ul, .care-report-text ol {
+  margin-left: 20px;
+  margin-bottom: 14px;
+}
+
+.care-report-text li {
+  margin-bottom: 6px;
+}
+
+/* ── Pediatric Care Copilot (Chatbot Widget) ── */
+.chat-widget {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 1000;
+  font-family: var(--font-body);
+}
+
+.chat-toggle-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--gradient-primary);
+  border: none;
+  color: #fff;
+  padding: 12px 22px;
+  border-radius: 50px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  box-shadow: var(--shadow), 0 0 15px var(--accent-glow);
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.chat-toggle-btn:hover {
+  transform: translateY(-3px) scale(1.03);
+  box-shadow: var(--shadow), 0 0 25px var(--accent-glow);
+}
+
+.chat-toggle-icon {
+  font-size: 1.15rem;
+}
+
+.chat-container {
+  position: absolute;
+  bottom: calc(100% + 16px);
+  right: 0;
+  width: 340px;
+  height: 440px;
+  background: var(--bg-dark);
+  border: 1px solid var(--border-h);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow), 0 8px 30px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  backdrop-filter: blur(25px);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(20px) scale(0.9);
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.chat-container.open {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0) scale(1);
+}
+
+.chat-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border-bottom: 1px solid var(--border);
+  padding: 14px 18px;
+  position: relative;
+}
+
+.chat-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--accent-glow);
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+}
+
+.chat-header-info h5 {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.chat-header-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.chat-status-dot {
+  width: 6px;
+  height: 6px;
+  background: #22c55e;
+  border-radius: 50%;
+  box-shadow: 0 0 6px #22c55e;
+}
+
+.chat-close-btn {
+  position: absolute;
+  right: 14px;
+  top: 14px;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 1.3rem;
+  cursor: pointer;
+  padding: 4px;
+  transition: color 0.2s;
+}
+
+.chat-close-btn:hover {
+  color: var(--text);
+}
+
+.chat-messages {
+  flex: 1;
+  padding: 16px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.chat-msg {
+  max-width: 82%;
+  padding: 10px 14px;
+  border-radius: 14px;
+  font-size: 0.84rem;
+  line-height: 1.45;
+  color: var(--text-muted);
+  animation: messageFadeIn 0.3s ease-out forwards;
+}
+
+@keyframes messageFadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.chat-msg.bot {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.02);
+  align-self: flex-start;
+  border-top-left-radius: 2px;
+}
+
+.chat-msg.user {
+  background: var(--gradient-primary);
+  color: #fff;
+  align-self: flex-end;
+  border-top-right-radius: 2px;
+  box-shadow: 0 2px 10px rgba(6, 182, 212, 0.15);
+}
+
+.chat-msg p {
+  margin-bottom: 6px;
+}
+
+.chat-msg p:last-child {
+  margin-bottom: 0;
+}
+
+.chat-input-wrap {
+  display: flex;
+  border-top: 1px solid var(--border);
+  background: rgba(0, 0, 0, 0.2);
+  padding: 8px 12px;
+}
+
+.chat-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  padding: 8px;
+  outline: none;
+}
+
+.chat-send-btn {
+  background: transparent;
+  border: none;
+  color: var(--accent-lt);
+  padding: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.05rem;
+  transition: transform 0.2s;
+}
+
+.chat-send-btn:hover {
+  transform: scale(1.15);
+  color: var(--text);
+}
+
+/* Typing Indicator Animation */
+.typing-indicator {
+  display: flex;
+  gap: 4px;
+  padding: 6px 4px;
+  align-self: flex-start;
+}
+
+.typing-dot {
+  width: 5px;
+  height: 5px;
+  background: var(--text-muted);
+  border-radius: 50%;
+  animation: typingBounce 1s infinite alternate;
+  opacity: 0.4;
+}
+
+.typing-dot:nth-child(2) { animation-delay: 0.2s; }
+.typing-dot:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes typingBounce {
+  from { transform: translateY(0); opacity: 0.4; }
+  to { transform: translateY(-5px); opacity: 1; }
 }
 
 /* ── Responsive ── */

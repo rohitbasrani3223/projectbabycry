@@ -16,6 +16,12 @@
 
 <body>
 
+  <!-- ── Scroll Progress Bar ── -->
+  <div class="scroll-progress" id="scrollProgress"></div>
+
+  <!-- ── Interactive Particle Canvas ── -->
+  <canvas class="particle-canvas" id="particleCanvas"></canvas>
+
   <!-- ── Noise Overlay ── -->
   <div class="noise-overlay"></div>
 
@@ -42,6 +48,35 @@
         <a href="#how-section" class="nav-link">How It Works</a>
         <a href="#types-section" class="nav-link">Cry Types</a>
         <a href="#model-section" class="nav-link">ML Model</a>
+      </div>
+      <div class="theme-selector-wrap">
+        <button class="theme-btn" id="themeBtn" aria-label="Select Theme" onclick="toggleThemeDropdown(event)">
+          <span class="theme-btn-icon">🎨</span>
+          <span class="theme-btn-text">Theme</span>
+          <span class="theme-arrow">▼</span>
+        </button>
+        <div class="theme-dropdown" id="themeDropdown">
+          <button class="theme-opt active" data-theme="cyberpunk" onclick="setThemeOption('cyberpunk')">
+            <span class="theme-dot" style="background: linear-gradient(135deg, #00f0ff, #0052ff)"></span>
+            Cyberpunk Neon
+          </button>
+          <button class="theme-opt" data-theme="sunset" onclick="setThemeOption('sunset')">
+            <span class="theme-dot" style="background: linear-gradient(135deg, #fda4af, #e11d48)"></span>
+            Sunset Cozy
+          </button>
+          <button class="theme-opt" data-theme="lavender" onclick="setThemeOption('lavender')">
+            <span class="theme-dot" style="background: linear-gradient(135deg, #c4b5fd, #7c3aed)"></span>
+            Midnight Lavender
+          </button>
+          <button class="theme-opt" data-theme="forest" onclick="setThemeOption('forest')">
+            <span class="theme-dot" style="background: linear-gradient(135deg, #a7f3d0, #059669)"></span>
+            Forest Moss
+          </button>
+          <button class="theme-opt" data-theme="pastel-light" onclick="setThemeOption('pastel-light')">
+            <span class="theme-dot" style="background: linear-gradient(135deg, #db2777, #8b5cf6)"></span>
+            Sakura Light
+          </button>
+        </div>
       </div>
       <div class="nav-status" id="modelStatus">
         <span class="status-dot pulsing"></span>
@@ -283,6 +318,51 @@
           <p id="doctorText">—</p>
         </div>
 
+        <!-- Scientific Plot Visualization -->
+        <div class="spectrogram-section hidden" id="spectrogramSection">
+          <h4>📊 Scientific Audio Analysis</h4>
+          <p class="spec-desc">Extracted raw audio input and MFCC feature spectrogram used by CrySense:</p>
+          <div class="spec-plot-container">
+            <img id="resultPlot" src="" alt="Audio Analysis Plot" class="spec-plot-img" />
+          </div>
+        </div>
+
+        <!-- Pediatric Care Assistant Report -->
+        <div class="care-report-section hidden" id="careReportSection">
+          <div class="care-report-header">
+            <span class="care-report-icon">✨</span>
+            <div>
+              <h4>CrySense Care Plan</h4>
+              <p class="care-report-subtitle">Personalized, clinically-guided care instructions for your baby</p>
+            </div>
+          </div>
+          
+          <div class="care-report-generator" id="reportGeneratorState">
+            <button class="btn-primary btn-sm-p" id="generateReportBtn" onclick="generateCareReport()">
+              <span>✨</span> Generate Detailed Care Plan
+            </button>
+          </div>
+          
+          <div class="care-report-loading hidden" id="reportLoadingState">
+            <div class="glow-spinner"></div>
+            <p>Analyzing audio acoustics and clinical pediatric guidelines...</p>
+          </div>
+          
+          <div class="care-report-content hidden" id="reportContentState">
+            <div class="care-report-text" id="reportText"></div>
+          </div>
+          
+          <div class="care-report-actions hidden" id="reportActionsState" style="margin-top: 15px; display: flex; gap: 12px; justify-content: flex-start;">
+            <button class="btn-outline btn-sm-p" onclick="downloadCareReport()" style="display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 6px; font-size: 0.85rem; font-weight: 500; cursor: pointer; transition: all 0.2s ease;">
+              <span>📥</span> Download Text Report
+            </button>
+            <button class="btn-outline btn-sm-p" onclick="printCareReport()" style="display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 6px; font-size: 0.85rem; font-weight: 500; cursor: pointer; transition: all 0.2s ease;">
+              <span>🖨️</span> Print / Save as PDF
+            </button>
+          </div>
+
+        </div>
+
         <div class="prob-section">
           <h4>All Probabilities</h4>
           <div class="prob-bars" id="probBars"></div>
@@ -300,25 +380,25 @@
         <p>A full ML pipeline — from raw audio to actionable parent guidance</p>
       </div>
       <div class="steps-grid">
-        <div class="step-card glass-card reveal-up" style="--delay:0s">
+        <div class="step-card glass-card reveal-3d-left" style="--delay:0s">
           <div class="step-num">01</div>
           <div class="step-icon">🎙️</div>
           <h3>Audio Input</h3>
           <p>Upload a WAV file or record live via microphone. Even 3–5 seconds is enough for accurate detection.</p>
         </div>
-        <div class="step-card glass-card reveal-up" style="--delay:0.1s">
+        <div class="step-card glass-card reveal-3d-left" style="--delay:0.12s">
           <div class="step-num">02</div>
           <div class="step-icon">📊</div>
           <h3>MFCC + Delta</h3>
           <p>40 MFCCs + Delta + Delta-Delta (120 features) extracted using Librosa — 3× richer than basic MFCC.</p>
         </div>
-        <div class="step-card glass-card reveal-up" style="--delay:0.2s">
+        <div class="step-card glass-card reveal-3d-right" style="--delay:0s">
           <div class="step-num">03</div>
           <div class="step-icon">🧠</div>
           <h3>CNN Classification</h3>
           <p>4-block deep CNN with GlobalAveragePooling classifies into 5 cry types with 97% accuracy.</p>
         </div>
-        <div class="step-card glass-card reveal-up" style="--delay:0.3s">
+        <div class="step-card glass-card reveal-3d-right" style="--delay:0.12s">
           <div class="step-num">04</div>
           <div class="step-icon">💡</div>
           <h3>Rich Report</h3>
@@ -459,6 +539,39 @@
       <p class="footer-copy">Built with ❤️ using TensorFlow, Librosa & Flask</p>
     </div>
   </footer>
+
+  <!-- ── Pediatric Care Copilot (Chatbot Widget) ── -->
+  <div class="chat-widget" id="chatWidget">
+    <button class="chat-toggle-btn" id="chatToggleBtn" onclick="toggleChatWidget(event)">
+      <span class="chat-toggle-icon">💬</span>
+      <span class="chat-toggle-text">Care Copilot</span>
+    </button>
+    
+    <div class="chat-container" id="chatContainer">
+      <div class="chat-header">
+        <div class="chat-avatar">🩺</div>
+        <div class="chat-header-info">
+          <h5>CrySense Care Copilot</h5>
+          <p class="chat-header-status"><span class="chat-status-dot"></span>Online Assistant</p>
+        </div>
+        <button class="chat-close-btn" onclick="toggleChatWidget(event)">×</button>
+      </div>
+      
+      <div class="chat-messages" id="chatMessages">
+        <div class="chat-msg bot">
+          <p>Hello! I am your CrySense Care Copilot. 👶</p>
+          <p>Ask me anything about baby feeding, sleep, diaper care, or soothing techniques!</p>
+        </div>
+      </div>
+      
+      <div class="chat-input-wrap">
+        <input type="text" class="chat-input" id="chatInput" placeholder="Ask a question..." onkeydown="handleChatKey(event)" />
+        <button class="chat-send-btn" onclick="sendChatMessage()">
+          <span class="send-icon">➔</span>
+        </button>
+      </div>
+    </div>
+  </div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <script src="/static/app.js"></script>
