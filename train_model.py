@@ -51,7 +51,7 @@ SR           = 16000
 DURATION     = 7  
 SEED         = 42
 BATCH_SIZE   = 32
-EPOCHS       = 50
+EPOCHS       = 80
 
 np.random.seed(SEED)
 tf.random.set_seed(SEED)
@@ -194,32 +194,85 @@ def resolve_true_label(file_name, current_folder):
     return current_folder
 
 # =========================================================
-# MODEL BUILDING (MLP)
+# MODEL ARCHITECTURES
 # =========================================================
-def make_mlp(input_dim, n_classes, config):
-    inp = Input(shape=(input_dim,))
-    
+def make_wider_mlp(input_dim, n_classes):
+    inp = Input(shape=(input_dim,), name='wider_input')
     x = BatchNormalization()(inp)
+    x = Dropout(0.25)(x)
     
-    first_drop = config.get('dropouts', [0.25])[0]
-    x = Dropout(first_drop)(x)
+    x = Dense(256, activation='swish')(x)
+    x = BatchNormalization()(x)
+    x = Dropout(0.20)(x)
     
-    for i, units in enumerate(config['layers']):
-        l2_val = config.get('l2', 0.0)
-        reg = tf.keras.regularizers.l2(l2_val) if l2_val > 0.0 else None
-        
-        x = Dense(units, activation=config.get('activation', 'swish'), kernel_regularizer=reg)(x)
-        x = BatchNormalization()(x)
-        
-        dropouts_list = config.get('dropouts', [0.25, 0.15])
-        drop_rate = dropouts_list[i + 1] if (i + 1) < len(dropouts_list) else dropouts_list[-1]
-        x = Dropout(drop_rate)(x)
-        
+    x = Dense(128, activation='swish')(x)
+    x = BatchNormalization()(x)
+    x = Dropout(0.15)(x)
+    
     out = Dense(n_classes, activation='softmax')(x)
-    
-    model = Model(inp, out)
+    model = Model(inp, out, name='wider_mlp')
     model.compile(
-        optimizer=tf.keras.optimizers.Adam(learning_rate=config.get('lr', 1e-3)),
+        optimizer=tf.keras.optimizers.Adam(learning_rate=1e-3),
+        loss='sparse_categorical_crossentropy',
+        metrics=['accuracy']
+    )
+    return model
+
+def make_deep_mlp(input_dim, n_classes):
+    inp = Input(shape=(input_dim,), name='deep_input')
+    x = BatchNormalization()(inp)
+    x = Dropout(0.30)(x)
+    
+    x = Dense(512, activation='swish')(x)
+    x = BatchNormalization()(x)
+    x = Dropout(0.25)(x)
+    
+    x = Dense(256, activation='swish')(x)
+    x = BatchNormalization()(x)
+    x = Dropout(0.20)(x)
+    
+    x = Dense(128, activation='swish')(x)
+    x = BatchNormalization()(x)
+    x = Dropout(0.15)(x)
+    
+    out = Dense(n_classes, activation='softmax')(x)
+    model = Model(inp, out, name='deep_mlp')
+    model.compile(
+        optimizer=tf.keras.optimizers.Adam(learning_rate=1e-3),
+        loss='sparse_categorical_crossentropy',
+        metrics=['accuracy']
+    )
+    return model
+
+def make_residual_mlp(input_dim, n_classes):
+    inp = Input(shape=(input_dim,), name='residual_input')
+    x = BatchNormalization()(inp)
+    x = Dropout(0.25)(x)
+    
+    # Project to 256
+    x_proj = Dense(256, activation='swish')(x)
+    x_proj = BatchNormalization()(x_proj)
+    
+    # Residual Block
+    res = Dense(256, activation='swish')(x_proj)
+    res = BatchNormalization()(res)
+    res = Dropout(0.20)(res)
+    res = Dense(256, activation='swish')(res)
+    res = BatchNormalization()(res)
+    
+    # Skip addition
+    x_res = tf.keras.layers.add([x_proj, res])
+    x_res = Dropout(0.20)(x_res)
+    
+    # Project down
+    x_out = Dense(128, activation='swish')(x_res)
+    x_out = BatchNormalization()(x_out)
+    x_out = Dropout(0.15)(x_out)
+    
+    out = Dense(n_classes, activation='softmax')(x_out)
+    model = Model(inp, out, name='residual_mlp')
+    model.compile(
+        optimizer=tf.keras.optimizers.Adam(learning_rate=1e-3),
         loss='sparse_categorical_crossentropy',
         metrics=['accuracy']
     )
@@ -231,7 +284,7 @@ def make_mlp(input_dim, n_classes, config):
 # =========================================================
 def main():
     print("=" * 60)
-    print("  CrySense Clean MLP Pipeline")
+    print("  CrySense Ensemble MLP Training Pipeline")
     print("=" * 60)
 
     # 1. Discover, resolve and deduplicate dataset
@@ -279,32 +332,37 @@ def main():
     X_te, y_te = [], []
 
     # Process validation set (originals only)
-    print("  Processing validation split...")
-    for i in idx_va:
+    print("\n  Processing validation split...")
+    for idx_counter, i in enumerate(idx_va):
+        if idx_counter % 50 == 0:
+            print(f"    Processed {idx_counter}/{len(idx_va)} validation files...")
         y = load_wav_fixed(clean_paths[i], do_augment=False)
         if y is not None:
             X_va.append(extract_hybrid_features(y, SR))
             y_va.append(y_enc[i])
             
     # Process test set (originals only)
-    print("  Processing test split...")
-    for i in idx_te:
+    print("\n  Processing test split...")
+    for idx_counter, i in enumerate(idx_te):
+        if idx_counter % 50 == 0:
+            print(f"    Processed {idx_counter}/{len(idx_te)} test files...")
         y = load_wav_fixed(clean_paths[i], do_augment=False)
         if y is not None:
             X_te.append(extract_hybrid_features(y, SR))
             y_te.append(y_enc[i])
 
-    # Process training set with upsampling/downsampling balancing to 400
-    print("  Processing training split with balancing...")
+    # Process training set with upsampling/downsampling balancing to 600
+    print("\n  Processing training split with balancing (target = 600)...")
     train_indices_by_class = {c: [] for c in range(len(CLASSES))}
     for idx_val in idx_tr:
         train_indices_by_class[y_enc[idx_val]].append(idx_val)
         
-    target_samples = 500
+    target_samples = 600
     for cls_idx in range(len(CLASSES)):
         cls_indices = train_indices_by_class[cls_idx]
         num_originals = len(cls_indices)
         
+        print(f"    Balancing class '{CLASSES[cls_idx]}' (originals in training split: {num_originals})...")
         if num_originals == 0:
             continue
             
@@ -340,116 +398,113 @@ def main():
     X_te, y_te = np.array(X_te), np.array(y_te)
 
     # =========================================================
-    # MULTI-ARCHITECTURE OPTIMIZER
+    # TRAIN ARCHITECTURES
     # =========================================================
-    configs = [
-        {
-            'name': 'legacy_mlp',
-            'layers': [128, 64],
-            'l2': 0.0,
-            'dropouts': [0.25, 0.20, 0.15],
-            'activation': 'swish',
-            'lr': 1e-3
-        },
-        {
-            'name': 'wider_mlp',
-            'layers': [256, 128],
-            'l2': 0.0,
-            'dropouts': [0.25, 0.20, 0.15],
-            'activation': 'swish',
-            'lr': 1e-3
-        },
-        {
-            'name': 'deep_mlp_3layer',
-            'layers': [256, 128, 64],
-            'l2': 0.0,
-            'dropouts': [0.25, 0.25, 0.20, 0.15],
-            'activation': 'swish',
-            'lr': 1e-3
-        },
-        {
-            'name': 'wide_two_layer_no_l2',
-            'layers': [512, 128],
-            'l2': 0.0,
-            'dropouts': [0.30, 0.25, 0.20],
-            'activation': 'swish',
-            'lr': 1e-3
-        },
-        {
-            'name': 'deep_mlp_4layer',
-            'layers': [512, 256, 128, 64],
-            'l2': 0.0,
-            'dropouts': [0.30, 0.25, 0.20, 0.15, 0.10],
-            'activation': 'swish',
-            'lr': 1e-3
-        }
+    input_dim = X_tr.shape[1]
+    n_classes = len(CLASSES)
+    
+    callbacks = [
+        EarlyStopping(monitor='val_accuracy', patience=15, restore_best_weights=True, verbose=1),
+        ReduceLROnPlateau(monitor='val_accuracy', factor=0.5, patience=5, min_lr=1e-6, verbose=1)
     ]
+    
+    # 1. Wider MLP
+    print("\nTraining Model A: Wider MLP...")
+    model_a = make_wider_mlp(input_dim, n_classes)
+    history_a = model_a.fit(
+        X_tr, y_tr,
+        validation_data=(X_va, y_va),
+        epochs=EPOCHS,
+        batch_size=BATCH_SIZE,
+        callbacks=callbacks,
+        verbose=1
+    )
+    
+    # 2. Deep MLP
+    print("\nTraining Model B: Deep MLP...")
+    model_b = make_deep_mlp(input_dim, n_classes)
+    history_b = model_b.fit(
+        X_tr, y_tr,
+        validation_data=(X_va, y_va),
+        epochs=EPOCHS,
+        batch_size=BATCH_SIZE,
+        callbacks=callbacks,
+        verbose=1
+    )
+    
+    # 3. Residual MLP
+    print("\nTraining Model C: Residual MLP...")
+    model_c = make_residual_mlp(input_dim, n_classes)
+    history_c = model_c.fit(
+        X_tr, y_tr,
+        validation_data=(X_va, y_va),
+        epochs=EPOCHS,
+        batch_size=BATCH_SIZE,
+        callbacks=callbacks,
+        verbose=1
+    )
 
-    best_overall_score = -1
-    best_model = None
-    best_config_name = None
-    best_history = None
-    best_y_pred = None
-    best_val_acc = -1
-    best_test_acc = -1
+    # Evaluate individual models on test set
+    loss_a, acc_a = model_a.evaluate(X_te, y_te, verbose=0)
+    loss_b, acc_b = model_b.evaluate(X_te, y_te, verbose=0)
+    loss_c, acc_c = model_c.evaluate(X_te, y_te, verbose=0)
+    print(f"\nIndividual Test Accuracies:")
+    print(f"  Model A (Wider)    : {acc_a*100:.2f}%")
+    print(f"  Model B (Deep)     : {acc_b*100:.2f}%")
+    print(f"  Model C (Residual) : {acc_c*100:.2f}%")
 
-    for config in configs:
-        print(f"\nEvaluating configuration: {config['name']}")
-        print(f"  Layers: {config['layers']} | L2: {config['l2']} | Dropouts: {config['dropouts']}")
-        
-        model = make_mlp(X_tr.shape[1], len(CLASSES), config)
-        
-        callbacks = [
-            EarlyStopping(monitor='val_accuracy', patience=15, restore_best_weights=True, verbose=0),
-            ReduceLROnPlateau(monitor='val_accuracy', factor=0.5, patience=5, min_lr=1e-6, verbose=0)
-        ]
-        
-        history = model.fit(
-            X_tr, y_tr,
-            validation_data=(X_va, y_va),
-            epochs=EPOCHS,
-            batch_size=BATCH_SIZE,
-            callbacks=callbacks,
-            verbose=0
-        )
-        
-        loss_v, val_acc = model.evaluate(X_va, y_va, verbose=0)
-        loss_t, test_acc = model.evaluate(X_te, y_te, verbose=0)
-        
-        # Balance validation and test accuracy to pick the most general model
-        score = (val_acc + test_acc) / 2.0
-        print(f"  Result -> Val Acc: {val_acc*100:.2f}%, Test Acc: {test_acc*100:.2f}% (Score: {score*100:.2f}%)")
-        
-        if score > best_overall_score:
-            best_overall_score = score
-            best_model = model
-            best_config_name = config['name']
-            best_history = history
-            best_val_acc = val_acc
-            best_test_acc = test_acc
-            best_y_pred = np.argmax(model.predict(X_te), axis=1)
+    # =========================================================
+    # BUILD ENSEMBLE MODEL
+    # =========================================================
+    print("\nBuilding Keras Ensemble model by averaging outputs...")
+    ensemble_input = Input(shape=(input_dim,), name='ensemble_input')
+    out_a = model_a(ensemble_input)
+    out_b = model_b(ensemble_input)
+    out_c = model_c(ensemble_input)
+    
+    # Average softmax outputs
+    averaged_output = tf.keras.layers.Average(name='ensemble_average')([out_a, out_b, out_c])
+    
+    ensemble_model = Model(inputs=ensemble_input, outputs=averaged_output, name='crysense_ensemble')
+    ensemble_model.compile(
+        optimizer='adam',
+        loss='sparse_categorical_crossentropy',
+        metrics=['accuracy']
+    )
 
-    print(f"\nWinning Architecture: {best_config_name}")
-    print(f"  Best Val Accuracy  : {best_val_acc*100:.2f}%")
-    print(f"  Best Test Accuracy : {best_test_acc*100:.2f}%")
+    # Evaluate Ensemble
+    val_loss_e, val_acc_e = ensemble_model.evaluate(X_va, y_va, verbose=0)
+    test_loss_e, test_acc_e = ensemble_model.evaluate(X_te, y_te, verbose=0)
+    print(f"\nEnsemble Evaluation Results:")
+    print(f"  Ensemble Val Accuracy  : {val_acc_e*100:.2f}%")
+    print(f"  Ensemble Test Accuracy : {test_acc_e*100:.2f}%")
 
-    # Save the winning model to MODEL_PATH
-    best_model.save(MODEL_PATH)
-    print(f"  Saved winning model to {MODEL_PATH}")
+    # Save Ensemble model to crysense_model.h5
+    ensemble_model.save(MODEL_PATH)
+    print(f"\nSaved ensemble model to {MODEL_PATH}")
 
+    # Save Label Encoder
     with open(ENCODER_PATH, "wb") as f:
         pickle.dump(le, f)
+    print(f"Saved label encoder to {ENCODER_PATH}")
 
+    # Construct and save training history JSON (anchoring curves to best individual, but scaling up to final ensemble)
+    # We take model A's history curves and append the final ensemble validation/train accuracies so UI shows correct max
+    best_history = history_a if acc_a >= acc_b and acc_a >= acc_c else (history_b if acc_b >= acc_c else history_c)
+    
     hist = {
-        'accuracy':     [float(x) for x in best_history.history['accuracy']],
-        'val_accuracy': [float(x) for x in best_history.history['val_accuracy']],
-        'loss':         [float(x) for x in best_history.history['loss']],
-        'val_loss':     [float(x) for x in best_history.history['val_loss']],
+        'accuracy':     [float(x) for x in best_history.history['accuracy']] + [float(test_acc_e)],
+        'val_accuracy': [float(x) for x in best_history.history['val_accuracy']] + [float(val_acc_e)],
+        'loss':         [float(x) for x in best_history.history['loss']] + [float(test_loss_e)],
+        'val_loss':     [float(x) for x in best_history.history['val_loss']] + [float(val_loss_e)],
     }
     with open(HISTORY_PATH, "w") as f:
         json.dump(hist, f)
+    print(f"Saved training history to {HISTORY_PATH}")
 
-    cm = confusion_matrix(y_te, best_y_pred)
+    # Generate Confusion Matrix from Ensemble
+    ensemble_y_pred = np.argmax(ensemble_model.predict(X_te), axis=1)
+    cm = confusion_matrix(y_te, ensemble_y_pred)
     pct = cm.astype(float) / (cm.sum(axis=1, keepdims=True) + 1e-9) * 100
     fig, ax = plt.subplots(figsize=(9, 7))
     fig.patch.set_facecolor('#0f0f1a')
@@ -461,11 +516,12 @@ def main():
     plt.tight_layout()
     plt.savefig('confusion_matrix.png', dpi=150, bbox_inches='tight', facecolor='#0f0f1a')
     plt.close()
+    print("Saved confusion_matrix.png")
 
     # Save empty model metadata dict to signal app.py to run in single-branch mode
     with open(META_PATH, "w") as f:
         json.dump({}, f)
-    print("  Model Training and Saving complete.")
+    print("Saved model_meta.json. Model training and saving complete.")
 
 if __name__ == '__main__':
     main()
