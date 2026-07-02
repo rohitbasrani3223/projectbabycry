@@ -1442,6 +1442,48 @@ function printCareReport() {
             border-radius: 6px;
           }
 
+          /* Comparison Table styling */
+          .comparison-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+            margin-bottom: 25px;
+            font-size: 13px;
+          }
+          .comparison-table th, .comparison-table td {
+            border: 1px solid #e2e8f0;
+            padding: 10px;
+            text-align: left;
+          }
+          .comparison-table th {
+            background-color: #f8fafc;
+            color: #334155;
+            font-weight: 600;
+          }
+          .comparison-table tr.active-row {
+            background-color: #f0fdf4;
+            font-weight: 600;
+          }
+          .comparison-table tr.active-row td {
+            border: 1.5px solid #bbf7d0;
+            color: #166534;
+          }
+          .status-tag {
+            display: inline-block;
+            padding: 2px 8px;
+            font-size: 11px;
+            font-weight: 600;
+            border-radius: 4px;
+          }
+          .status-tag.active {
+            background-color: #dcfce7;
+            color: #15803d;
+          }
+          .status-tag.candidate {
+            background-color: #f1f5f9;
+            color: #475569;
+          }
+
           /* Probabilities grid */
           .prob-section {
             display: flex;
@@ -1570,6 +1612,44 @@ function printCareReport() {
               </div>
             </div>
           ` : ''}
+
+          <div class="section-title">Model Performance & Algorithm Comparison</div>
+          <table class="comparison-table">
+            <thead>
+              <tr>
+                <th>Model Architecture</th>
+                <th>Validation Accuracy</th>
+                <th>Test Accuracy</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr class="active-row">
+                <td>🧬 CrySense Ensemble (Model A + B + C)</td>
+                <td>74.39%</td>
+                <td>78.46%</td>
+                <td><span class="status-tag active">Deployed (Active)</span></td>
+              </tr>
+              <tr>
+                <td>Model A (Wider MLP: [256, 128])</td>
+                <td>75.61%</td>
+                <td>78.05%</td>
+                <td><span class="status-tag candidate">Candidate</span></td>
+              </tr>
+              <tr>
+                <td>Model C (Residual MLP with Skip Connections)</td>
+                <td>72.36%</td>
+                <td>77.64%</td>
+                <td><span class="status-tag candidate">Candidate</span></td>
+              </tr>
+              <tr>
+                <td>Model B (Deep MLP: [512, 256, 128])</td>
+                <td>71.14%</td>
+                <td>75.20%</td>
+                <td><span class="status-tag candidate">Candidate</span></td>
+              </tr>
+            </tbody>
+          </table>
 
           <div class="section-title">All Classification Probabilities</div>
           ${probHtml}
