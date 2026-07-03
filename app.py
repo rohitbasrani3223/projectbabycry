@@ -167,7 +167,7 @@ CRY_INFO = {
             '🧣 Use a light blanket if too cold'
         ],
         'secondary_emotions': ['discomfort', 'tired'],
-        'doctor_warning': 'If baby feels very hot (fever > 38°C / 100.4°F) or very cold and unresponsive — seek medical help immediately.',
+        'doctor_warning': 'If  A baby feels very hot (fever > 38°C / 100.4°F) or very cold and unresponsive — seek medical help immediately.',
         'duration_tip': 'Once temperature is adjusted, baby should settle within 5–10 minutes.'
     }
 }
